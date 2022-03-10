@@ -1,0 +1,33 @@
+
+<div id="box">
+    <input type="text">
+</div>
+
+<script>
+let keysPressed = {};
+
+document.addEventListener('keydown', (event) => {
+   keysPressed[event.key] = true;
+
+   if (keysPressed['Control'] && event.key == 'a') {
+       alert(event.key);
+   }
+});
+
+document.addEventListener('keyup', (event) => {
+   delete keysPressed[event.key];
+});
+
+</script>
+
+<!-- from https://www.gavsblog.com/blog/detect-single-and-multiple-keypress-events-javascript -->
+
+<!-- see https://medium.com/@dovern42/handling-multiple-key-presses-at-once-in-vanilla-javascript-for-game-controllers-6dcacae931b7 -->
+
+<!-- & here: https://www.allbloggertricks.com/2021/04/determine-if-multiple-keys-are-pressed.html -->
+
+<!-- & here https://gist.github.com/pom421/47062df142b39b25a0181f95b5b49600 -->
+
+<!-- old example: https://stackoverflow.com/questions/56141481/how-to-detect-if-multiple-keys-are-being-pressed-at-the-same-time-in-html-using -->
+
+<!-- need to look at timings - how long after x happens can y be pressed? -->
