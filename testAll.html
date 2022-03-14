@@ -1,0 +1,26 @@
+<html>
+<head>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        font-family: 'VT323', monospace;
+        <!-- handle in javascript? -->
+    </style>
+</head>
+<body>
+    <canvas id="screen" width="512" height="512"
+    style="border:1px solid #d3d3d3;">
+    Your browser does not support the canvas element.
+    </canvas>
+
+    <script type='text/javascript' src='picoJS.js'></script>
+    <script>
+        // print test
+        for (var b = 24; b <= 512; b += 20) {
+            for (var a = 4; a <= 512-14; a+= 14) {
+                printAt("0", a, b, "#808080"); // change to colour number
+            }
+        };
+        // work out logic behind this
+    </script>
+</body>
+</html>
