@@ -4,6 +4,23 @@ spr(number,x,y,w,h,hflip,vflip) -- or do as spr
 #normal sprite
 sspr(xs,yx,xw,yh,px,py,hflip,vflip) -- or do as sspr
 
+Is already built into JavaScript - sort of
+
+drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+
+image = image url
+sx & sy - source x & y
+swidth & sheight - source width & height
+dx & dy - destination x & y
+dwidth & dheight - are these needed? don't they stretch? eg. scaling?
+
+booty example
+round about 104 x 32
+to 112 x 47
+and then 3 frames
+
+screen.drawImage(tests/booty-sprites.png, 104, 32, 8, 16, 16, 16, 16, 32)
+
 ? how to distinguish between sprite sheets
 
 https://spicyyoghurt.com/tutorials/html5-javascript-game-development/images-and-sprite-animations
