@@ -3,6 +3,11 @@ window.onload = function () {
     var canvas = document.getElementById("screen");
     var screen = canvas.getContext("2d");
     // 18, 156, 189
+
+// put init function here
+// move functions to the end
+
+    var px = 40; // testing movement
     _init();
     
     // _init image section - how to simplify?
@@ -20,18 +25,20 @@ window.onload = function () {
         _update();
         _draw();
 
-        requestAnimationFrame(loop);
+        // requestAnimationFrame(loop); // comment if don't want loop to run
     }
     
     function _draw() {
         console.log("_draw called");
         // sspr(img, 105, 32, 7, 15, 40, 40, 15, 32,true,false);
         // screen.drawImage(img, 105, 32, 7, 15, 0, 0, 15, 32);
-        spr(77, 40, 40, 1, 2);
+        cls();
+        spr(77, px, 40, 1, 2);
     }
 
     function _update() {
         console.log("_update called");
+        px ++;
         document.addEventListener("keydown", keyDownHandler, false);
         document.addEventListener("keyup", keyUpHandler, false);
         console.log(keyPressed)
