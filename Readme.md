@@ -11,21 +11,62 @@ PicoJS
 
 To Do -
 
-Fix variable parameters
-Sprites - sspr - ctx.drawImage(image, 105, 32, 7, 15, 0, 0, 15, 32)
-    (spr will call it)
-BTN
-Map
 Gameloop
+    xNeed to implement CLS - done? test
+    xIs it looping? 
+        Why is it calling draw twice?
+    Check placement - repeat switching between flips
+    Check movement
+
+_init called
+loop called
+_update called
+?    false
+_draw called
+spr called
+sspr called
+_draw called
+spr called
+sspr called
+
+Not working -
+
+    loop();
+
+    function loop() {
+        console.log("loop called");
+        _update();
+        _draw();
+
+        // requestAnimationFrame(loop);
+    }
+
+Working -
+
+    function init() {
+        // Initialise the game!
+    }
+
+    function main() {
+        // Here's where we handle all the input, logic and drawing to the screen per frame.
+
+        // call itself by requesting the next animation frame, and so begin the endless loop
+        requestAnimationFrame(main);
+    }
+
+    // Initialise
+    init();
+
+    // Start the loop!
+    requestAnimationFrame(main);
+
+BTN - not working yet - loop issue?
+Map
+Fix variable parameters - resolution etc.
 
 Animation example
-Implement flip - maybe rotate
-    Flip V - https://pqina.nl/blog/flipping-images-with-css-and-javascript/
-    Flip H - https://www.w3schools.com/howto/howto_css_flip_image.asp
-        https://stackoverflow.com/questions/35973441/how-to-horizontally-flip-an-image
-    rspr
-    Rotate - https://sebhastian.com/javascript-rotate-images/
-        https://cloudinary.com/blog/rotating_images_in_javascript_three_quick_tutorials
+Implement rotate
+Implement collide
 
 Rect & Line
 xset & xget
@@ -35,3 +76,7 @@ Basic CSS
 xBasic print
 xAdd colour
 xBasic sprite
+xImplement flip
+xSprites - sspr + spr
+    Need to test different widths & heights
+    Need to fix placement after flip
