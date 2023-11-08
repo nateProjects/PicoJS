@@ -1,8 +1,8 @@
-Pico-JS Javacscript Game library
+Pico-JS Javascript Game library
 
-For migrating Pico-8 games to JavaScript
+A simple game languages inspired by Pico-8 Lua, and useful for migrating Pico-8 games to JavaScript
 
-To Do
+TO DO
 
 Implemented (partially) -
 
@@ -38,8 +38,8 @@ Other Ideas -
 
 * Should do collision - collide(obj1,obj2)
 * Should be able to account for bigger spritesheet
-* Should add scaling x2,x3,x4 - see systems, scale sprite auto too - 128,256,384,512 ... 1024 could just multiply then any conceivable - but what if wanted to stretch?
-* Possible Tile implementation
+* Should add scaling x2,x3,x4 - see systems, scale sprite auto too - 128,256,384,512 ... 1024 could just multiply then any conceivable
+* Possible Tile map implementation
 * Single non-spritesheet sprites - aspr
 * Add jump command? gravity, trajectory
 * Add bounds to moving sprites?
