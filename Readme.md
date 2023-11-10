@@ -13,24 +13,20 @@ Implemented (partially) -
 * CLS
 * COLOUR / COLOR
 * SSPR
-* SPR
-* MAP
+* SPR - need to implement reverse
+* MAP - 0.3.x
 
 To Add -
 
-* Mget - get sprite # @ x,y
-* MSet - set sprite # @ x,y
-* PGet - get pixel colour # @ x,y
-* PSet - set pixel colour # @ x,y
-* FGet - get sprite # flag
-* FSet - set sprite # flag
-* ? SGet 
-* ? SSet
-* Camera - really should implement if possible
-* Pal / Palt - really should implement if possible
-* Tables vs arrays - emulate Lua table command in Javascript - really should implement if possible
-* Music - just play exported
-* ? SFX - play exported (able to export?)
+* Mget - get sprite # @ x,y & MSet - set sprite # @ x,y - 0.4.x
+* PGet - get pixel colour # @ x,y & PSet - set pixel colour # @ x,y - 0.5.x
+* FGet - get sprite # flag & FSet - set sprite # flag - 0.6.x
+* ? SGet & SSet
+* Camera - if possible
+* Pal / Palt -  if possible
+* Tables vs arrays - emulate Lua table command in Javascript - if possible
+* Music - just play exported?
+* ? SFX - play exported?
 * ? Clip
 * ? MenuItem
 
@@ -45,3 +41,16 @@ Other Ideas -
 * Add bounds to moving sprites?
 * Add speed to movement
 * CSS Styles - based on Pico & Consoles
+* Scaling - for Canvas, MAP & SPR
+* Multiple Players (BTN) & SPR
+
+Examples -
+
+* Character movement
+* Character animation
+* Catching game
+* Shooting game
+* Racing / Skiing game
+* Bat & Ball game
+* Snake game
+* Platform game
