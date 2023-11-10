@@ -54,3 +54,5 @@ Examples -
 * Bat & Ball game
 * Snake game
 * Platform game
+* Flappy bird
+* Continuous runner
