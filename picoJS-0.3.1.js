@@ -1,13 +1,15 @@
 window.onload = function () {
 
+    // can i put this in procedure?
     var canvas = document.createElement("canvas");
     var screen = canvas.getContext("2d");
     canvas.width = 128; // Set the canvas width
     canvas.height = 128; // Set the canvas height
+    canvas.style.left = "30px"; // consider centering / styles
+    canvas.style.top = "30px";
+    canvas.style.position = "absolute";
     document.body.appendChild(canvas);
 
-//    var canvas = document.getElementById("screen");
-//    var screen = canvas.getContext("2d");
     var px = 40;
     var py = 40;
 
@@ -40,7 +42,7 @@ window.onload = function () {
 
     function _draw() {
         cls();
-        map();
+        map(16,0,0,0,16,16);
         spr(77, px, py, 1, 2);
     }
 
@@ -237,9 +239,12 @@ window.onload = function () {
         // console.log(img, sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)
     }
 
-    function map() {
-        screen.drawImage(maps,0,0);
+    function map(mcelx, mcely, msx, msy, mcelw, mcelh, mlayer) {
+        screen.drawImage(maps, (mcelx*8), (mcely*8), (mcelw*8), (mcelh*8), msx, msy, (mcelw*8), (mcelh*8)); // mcelw, mcelh
+        console.log(msx);
         //      screen.drawImage('tests/booty-demake-map.png', 0, 0, 128, 128, x, y, x+128, y+128)
+        //      x & y relative to canvas? 
+        //      next screen map(16,0,0,0,16,16) would be screen.drawImage(maps,128,0,128,128,0,0,128,128);
     }
 
     function btn(checkNum) {
