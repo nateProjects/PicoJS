@@ -33,7 +33,7 @@ This will cover -
 * CLS
 * COLOUR / COLOR
 * SSPR
-* SPR - need to implement reverse
+* SPR
 * MAP
 
 ### To Add -
