@@ -1,4 +1,4 @@
-// 0.3.2 - SPR drawing fix, animation test
+// 0.3.2b - SPR drawing fix, animation test
 window.onload = function () {
     // ignore this part if you want to focus on game coding
     // it sets up the canvas & key detection in the browser
@@ -21,7 +21,7 @@ window.onload = function () {
     document.addEventListener("keydown", keyDownHandler, false);
     document.addEventListener("keyup", keyUpHandler, false);
     var img = new Image();
-    img.src = 'tests/booty-sprites.png';
+    img.src = 'resources/spritesheet.png';
     img.onerror = function () { alert(img.src + ' failed to load.'); };
     var maps = new Image();
     maps.src = 'tests/booty-demake-map.png'; 
@@ -36,10 +36,10 @@ window.onload = function () {
 
 // Regular Pico-8-like code starts here
 
-var pchar = 77
-var pstart = 77
+var pchar = 6
+var pstart = 6
 var pflip = false
-var pend = 80
+var pend = 9
 var px = 40; // player x
 var py = 40;
 
@@ -47,11 +47,11 @@ function _draw() {
     cls();
     map(16,0,0,0,16,16);
     spr(pchar, px, py, 1, 2, pflip);
+    console.log("pchar:", pchar);
 }
 
 function _update() {
-
-    if (btn(0) && px > 0) { // left + screen boundaries 
+    if (btn(0) && px > 8) { // left + screen boundaries 
         px -= 1; // need to account for multiple players
         pflip = true;
         move();
@@ -68,6 +68,10 @@ function _update() {
 
     if (btn(3) && py < 120) { // down - need to account for sprite height
         py +=1;
+    }
+    if (keyPressedNum != 7) {
+    console.log("px:", px, "py:", py);
+    console.log("keyPressedNum:", keyPressedNum);
     }
 }
 
@@ -180,13 +184,13 @@ function move() {
         screen.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-// Standard functions...
+// Standard Pico-8-like functions
 
     function colour(col) {
         // change colour here
         curcol = col;
         screen.fillStyle = colours[sys][col][2];
-        console.log("colour " + colours[sys][col][2])
+//        console.log("colour " + colours[sys][col][2])
         return (colours[sys][col][2]) // so we can look up what current colour value is
         // should this be number? (instead of hex?)
     }
@@ -196,7 +200,7 @@ function move() {
     }
 
     function sspr(img, sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y) {
-        console.log("sspr called");
+//        console.log("sspr called");
         // Set flip & position
         let fx = 1;
         let fy = 1;
@@ -216,8 +220,7 @@ function move() {
     }
 
     function spr(n, x, y, w, h, flip_x, flip_y) {
-        console.log("spr called");
-        // x,y
+//        console.log("spr called");
         dx = x;
         dy = y;
         sprcellx = (n) % mapgrid; // find sprite cell x
@@ -245,6 +248,14 @@ function move() {
 
     function btn(checkNum) {
         return checkNum === keyPressedNum;
+    }
+
+    function mget(mx,my) {
+
+    }
+
+    function mset(mx,my) {
+
     }
 
 }
