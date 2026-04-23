@@ -6,6 +6,88 @@ A simple JavaScript game library, which makes it easy to create canvas-based gam
 
 It is inspired by Pico-8, a Lua-based virtual game console and game creation IDE, and can be used to port Pico-8 games to JavaScript.
 
+## Game Creation With Pico-JS
+
+This will cover -
+* Displaying and moving a sprite with key presses
+* Displaying a map / game level
+* Setting unmovable areas
+* Creating collectable items & scoring
+* Creating NPCs & losing conditions
+* Adding firing, being fired at mechanic
+* Sprite & map creation via Pico-8 or other pixel & tile tools
+
+## Pico-8 To JavaScript Conversion
+
+This will cover -
+* Exporting the necessary files
+* Running the included conversion script 
+* & any manual changes that may need to be made
+
+## TO DO
+
+### Implemented (partially) -
+
+* _draw
+* _update
+* _init
+* BTN (0-5: arrows + O/X)
+* CLS (with optional colour)
+* COLOUR / COLOR
+* SSPR
+* SPR
+* MAP (image-backed)
+* PRINT
+* RECT / RECTFILL
+* LINE
+* CIRC / CIRCFILL
+* OVAL / OVALFILL
+* PSET / PGET
+* CAMERA
+
+### Roadmap / To Add -
+
+* Mget - get sprite # @ x,y & Mset - set sprite # @ x,y - 0.4.1 (stubs present in 0.4.0)
+* Fget - get sprite # flag & Fset - set sprite # flag - 0.4.1 (stubs present in 0.4.0)
+* Data-array map format (replaces image-backed map) - 0.4.1
+* `.p8` → JS conversion tool - 0.4.2
+* BTNP (just-pressed) - 0.4.3+
+* Table helpers (add / del / foreach / all) - 0.4.3+
+* Pico-8 math quirks (flr / sin / cos in turns / atan2 with swapped args / rnd) - 0.4.3+
+* ? SGet & SSet
+* Pal / Palt -  if possible
+* Music - just play exported?
+* ? SFX - play exported?
+* ? Clip
+* ? MenuItem
+
+### Other Ideas -
+
+* Should do collision - collide(obj1,obj2)
+* Should be able to account for bigger spritesheet
+* Should add scaling x2,x3,x4 - see systems, scale sprite auto too - 128,256,384,512 ... 1024 could just multiply then any conceivable
+* Possible Tile map implementation
+* Single non-spritesheet sprites - aspr
+* Add jump command? gravity, trajectory
+* Add bounds to moving sprites?
+* Add speed to movement
+* CSS Styles - based on Pico & Consoles
+* Scaling - for Canvas, MAP & SPR
+* Multiple Players (BTN) & SPR
+
+### Examples -
+
+* Character movement
+* Character animation
+* Catching game
+* Shooting game
+* Racing / Skiing game
+* Bat & Ball game
+* Snake game
+* Platform game
+* Flappy bird
+* Continuous runner
+
 ## Changelog
 
 ### 0.4.0 — namespace refactor, drawing primitives & camera
@@ -60,12 +142,6 @@ Style by targeting `#picojs-debug` in your own CSS, or pass `debugElement` to `r
 
 Test harness: `test-0.4.0.html` + `test-0.4.0-game.js` — the game file shows the new boot pattern, drives `picoJS.debugText` with live player state, and the HTML checklist walks through every primitive, the camera scroll, and the `pset`/`pget` round-trip. `picoJS-0.3.4.js` + `test-0.3.4.html` are untouched as the last monolithic version for anyone mid-port.
 
-Intentionally not in 0.4.0 (see roadmap below):
-
-* `mget` / `mset` / `fget` / `fset` and a data-array map format → 0.4.1
-* `.p8` → JS conversion tool → 0.4.2
-* `btnp`, table helpers (`add` / `del` / `foreach` / `all`), Pico-8 math quirks (`flr`, `sin`/`cos` in turns, `atan2` with swapped args) → 0.4.3+
-
 ### 0.3.4 — bug-fix pass + retire obsolete harnesses
 
 Harness cleanup: `test-0.3.2.html`, `testAll.html`, `picoJS-test.html`/`.js`, and `spr-anim-example01.html`/`.js` were all moved to `old/`. None of them exercised the current library API — some loaded versions that were already archived, others shipped their own inline copy of `spr()` with the broken `Math.round` row math. Replaced by a single new test: `test-0.3.4.html`, which loads `picoJS-0.3.4.js` and includes an on-page checklist for spot-checking each fix.
@@ -74,8 +150,6 @@ Asset paths are now overridable via `window.picoJS_spriteSrc` / `window.picoJS_m
 
 Bug fixes:
 
-
-* Fixed a silent-comma bug in the ZX Spectrum palette that was causing JavaScript to parse the `bright-blue` entry and the line below it as an index expression. The array length was 14 instead of 15 and `palette[8]` was `undefined`. Corrected the typo `bright-ed` → `bright-red` and moved the bright colours to indices 9–14 (they were previously re-using 2–7).
 * Moved colour / system state (`sys`, `curcol`, `colours`, `systems`) out of `_init()`'s local scope into the outer closure so `colour()` / `color()` actually work — previously they threw `ReferenceError` on the first call.
 * Wrapped flip transforms in `save()` / `restore()` inside `sspr()`. `screen.scale(-1, 1)` was leaking into subsequent draws, leaving the whole canvas mirrored after the first flipped sprite.
 * Switched `spr()` row-math from `Math.round(n / 16) - 8` to `Math.floor(n / 16)` in `picoJS.js`. The round-based formula placed sprites 0–7 at y = −8 (off-canvas) and sprites 16–23 at y = 0 (row 0 instead of row 1).
@@ -86,86 +160,3 @@ Bug fixes:
 * First `_draw()` now waits for the spritesheet's `onload`, avoiding a blank first frame.
 * `tests/template.js` — fixed a syntax error where `printat` had a string literal as a parameter name.
 * `picoJS-0.3.3.js` was pointing `maps.src` at the spritesheet; kept that version as-is (historical snapshot) but `picoJS-0.3.4.js` points at `resources/map.png`.
-
-## Game Creation With Pico-JS
-
-This will cover -
-* Displaying and moving a sprite with key presses
-* Displaying a map / game level
-* Setting unmovable areas
-* Creating collectable items & scoring
-* Creating NPCs & losing conditions
-* Adding firing, being fired at mechanic
-* Sprite & map creation via Pico-8 or other pixel & tile tools
-
-## Pico-8 To JavaScript Conversion
-
-This will cover -
-* Exporting the necessary files
-* Running the included conversion script 
-* & any manual changes that may need to be made
-
-## TO DO
-
-### Implemented (partially) -
-
-* _draw
-* _update
-* _init
-* BTN (0-5: arrows + O/X)
-* CLS (with optional colour)
-* COLOUR / COLOR
-* SSPR
-* SPR
-* MAP (image-backed)
-* PRINT
-* RECT / RECTFILL
-* LINE
-* CIRC / CIRCFILL
-* OVAL / OVALFILL
-* PSET / PGET
-* CAMERA
-
-### To Add -
-
-* Mget - get sprite # @ x,y & Mset - set sprite # @ x,y - 0.4.1 (stubs present in 0.4.0)
-* Fget - get sprite # flag & Fset - set sprite # flag - 0.4.1 (stubs present in 0.4.0)
-* Data-array map format (replaces image-backed map) - 0.4.1
-* `.p8` → JS conversion tool - 0.4.2
-* BTNP (just-pressed) - 0.4.3+
-* Table helpers (add / del / foreach / all) - 0.4.3+
-* Pico-8 math quirks (flr / sin / cos in turns / atan2 with swapped args / rnd) - 0.4.3+
-* ? SGet & SSet
-* Pal / Palt -  if possible
-* Music - just play exported?
-* ? SFX - play exported?
-* ? Clip
-* ? MenuItem
-
-### Other Ideas -
-
-* Should do collision - collide(obj1,obj2)
-* Should be able to account for bigger spritesheet
-* Should add scaling x2,x3,x4 - see systems, scale sprite auto too - 128,256,384,512 ... 1024 could just multiply then any conceivable
-* Possible Tile map implementation
-* Single non-spritesheet sprites - aspr
-* Add jump command? gravity, trajectory
-* Add bounds to moving sprites?
-* Add speed to movement
-* CSS Styles - based on Pico & Consoles
-* Scaling - for Canvas, MAP & SPR
-* Multiple Players (BTN) & SPR
-
-### Examples -
-
-* Character movement
-* Character animation
-* Catching game
-* Shooting game
-* Racing / Skiing game
-* Bat & Ball game
-* Snake game
-* Platform game
-* Flappy bird
-* Continuous runner
-
