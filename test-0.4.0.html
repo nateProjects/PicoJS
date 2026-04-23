@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>picoJS 0.4.0 &mdash; primitives, camera &amp; run() harness</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        body {
+            background: #1D2B53;
+            color: #FFF1E8;
+            font-family: 'VT323', monospace;
+            margin: 16px;
+        }
+        h1 { font-size: 28px; margin: 0 0 8px; }
+        p  { font-size: 18px; margin: 0 0 12px; }
+
+        /* Override the inline absolute position set by picoJS-0.4.0.js so
+           the canvas flows in-line with the rest of the page. */
+        canvas {
+            position: static !important;
+            left: auto !important;
+            top: auto !important;
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            transform: scale(3);
+            transform-origin: top left;
+            background: #000;
+        }
+        .checklist {
+            position: fixed;
+            right: 16px;
+            top: 16px;
+            width: 380px;
+            padding: 12px 16px;
+            background: #00000066;
+            border: 1px solid #29ADFF;
+        }
+        .checklist h2 { font-size: 22px; margin: 0 0 8px; color: #FFEC27; }
+        .checklist ul { padding-left: 20px; margin: 0 0 8px; }
+        .checklist li { font-size: 18px; margin-bottom: 4px; }
+        .checklist h3 { font-size: 18px; margin: 8px 0 4px; color: #FF77A8; }
+        code { color: #FF77A8; }
+        kbd  { color: #FFEC27; }
+    </style>
+</head>
+<body>
+    <h1>picoJS 0.4.0 &mdash; primitives, camera &amp; <code>run()</code> harness</h1>
+    <p>
+        <kbd>&larr; &rarr; &uarr; &darr;</kbd> move &middot;
+        <kbd>Z</kbd> fire dot (<code>pset</code>) &middot;
+        <kbd>X</kbd> pan camera.
+        Canvas is scaled 3&times; for visibility.
+    </p>
+
+    <div class="checklist">
+        <h2>What to verify</h2>
+
+        <h3>Lifecycle / namespace</h3>
+        <ul>
+            <li>No console errors on load</li>
+            <li>Library loaded as <code>picoJS</code> namespace, game file runs via <code>picoJS.run({...})</code></li>
+            <li>Game code uses unqualified <code>cls()</code> / <code>spr()</code> / <code>btn()</code> &mdash; <code>installGlobals()</code> worked</li>
+        </ul>
+
+        <h3>0.3.4 fixes still good</h3>
+        <ul>
+            <li>Arrow keys move the player; diagonals work (multi-key <code>btn</code>)</li>
+            <li>Left flips the sprite; nothing else mirrors (<code>sspr</code> save/restore)</li>
+            <li>Walking frames cycle while held, freeze when released</li>
+            <li>Decoration sprite (#16) is sharp at row 1 &mdash; <code>Math.floor</code> row-math</li>
+        </ul>
+
+        <h3>New primitives</h3>
+        <ul>
+            <li>Top &amp; bottom bars render (<code>rectfill</code> + <code>rect</code> outline)</li>
+            <li>Green health bar grows with <code>px</code> (<code>rectfill</code>)</li>
+            <li>Flat health baseline at y=112 is 1px (<code>line</code>)</li>
+            <li>Orange outlined circle + yellow filled dot (<code>circ</code> / <code>circfill</code>)</li>
+            <li>Pink oval outline + red filled oval (<code>oval</code> / <code>ovalfill</code>)</li>
+            <li>Title <code>picoJS 0.4.0</code> prints over the top strip</li>
+        </ul>
+
+        <h3>pset / pget round-trip</h3>
+        <ul>
+            <li>Holding <kbd>Z</kbd> sprays yellow dots around the player</li>
+            <li><code>pget@(4,110)</code> in the top bar shows <code>11</code> (green bar) or <code>0</code> (black gap) &mdash; proves reverse palette lookup</li>
+        </ul>
+
+        <h3>Camera</h3>
+        <ul>
+            <li>Holding <kbd>X</kbd> scrolls the map + sprite + shots horizontally</li>
+            <li>HUD (top bar, bottom bar, health bar, circles, ovals) stays pinned &mdash; proves <code>camera(0,0)</code> reset works mid-frame</li>
+            <li><code>cam:</code> counter in the bottom strip ticks up while panning</li>
+        </ul>
+    </div>
+
+    <!-- picoJS-0.4.0.js exposes the library as window.picoJS but does NOT
+         create a canvas or start any loop until picoJS.run({...}) is called
+         from the game file. -->
+    <script type="text/javascript" src="picoJS-0.4.0.js"></script>
+    <script type="text/javascript" src="test-0.4.0-game.js"></script>
+</body>
+</html>

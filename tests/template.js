@@ -124,7 +124,6 @@ function colour(col) { // maybe add color alias
 //  141		#754665	117,70,101	mauve
 //  142		#FF6E59	255,110,89	dark-peach
 //  143		#FF9D81	255,157,129	peach
-}
 
 function btn(i, p, x) { // also btnp - x
     // Player 1: ⬅︎⬆︎⬇︎➡︎ Z,Y,X / C,V / N,M 
@@ -132,7 +131,7 @@ function btn(i, p, x) { // also btnp - x
     // Pause: P / Enter
 }
 
-function printat("text", x, y, color, font, size) {
+function printat(text, x, y, color, font, size) {
     // add font - https://www.w3schools.com/css/css3_fonts.asp
 
 // need to use montype font & divide into 8 (or have option to change cell size)

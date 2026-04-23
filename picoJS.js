@@ -1,63 +1,71 @@
+// picoJS — current stable (0.3.4)
+// See picoJS-0.3.4.js for the versioned copy & the bug-fix changelog.
 
 window.onload = function () {
     var canvas = document.getElementById("screen");
-    var screen = canvas.getContext("2d");
-    // 18, 156, 189
-
-// put init function here
-// move functions to the end
-
-    var px = 40; // testing movement
-    _init();
-    
-    // _init image section - how to simplify?
-    var img = new Image();
-    img.onerror = function () { alert(img.src + ' failed to load.'); };
-    img.src = 'tests/booty-sprites.png';
-    img.onload = _draw;
-
-    var keyPressed = false;
-
-    loop();
-
-    function loop() {
-        console.log("loop called");
-        _update();
-        _draw();
-
-        // requestAnimationFrame(loop); // comment if don't want loop to run
+    if (!canvas) {
+        canvas = document.createElement("canvas");
+        canvas.id = "screen";
+        canvas.width = 128;
+        canvas.height = 128;
+        canvas.style.left = "30px";
+        canvas.style.top = "30px";
+        canvas.style.position = "absolute";
+        document.body.appendChild(canvas);
     }
-    
+    var screen = canvas.getContext("2d");
+
+    // Input state
+    var keyPressedNum = 7;
+    var keyPressedLeft = false;
+    var keyPressedRight = false;
+    var keyPressedUp = false;
+    var keyPressedDown = false;
+
+    // System / colour state in the outer closure so colour() can see it.
+    var systems = [
+        [0, 0, "Pico-8", 128, 128],
+        [1, 1, "Pico-8 Alt", 64, 64],
+        [2, 3, "ZX Spectrum", 256, 192]
+    ];
+    var sys = 0;
+    var w = 128;
+    var h = 128;
+    var curcol = 0;
+    var colours = [];
+
+    var mapgrid = 16;
+    var sprsize = 8;
+
+    // Register listeners ONCE, not inside _update().
+    document.addEventListener("keydown", keyDownHandler, false);
+    document.addEventListener("keyup", keyUpHandler, false);
+
+    var img = new Image();
+    img.src = 'tests/booty-sprites.png';
+    img.onerror = function () { console.error(img.src + ' failed to load.'); };
+
+    // Example user code — kept minimal; picoJS-0.3.4.js has the full demo.
+    var px = 40;
+
     function _draw() {
-        console.log("_draw called");
-        // sspr(img, 105, 32, 7, 15, 40, 40, 15, 32,true,false);
-        // screen.drawImage(img, 105, 32, 7, 15, 0, 0, 15, 32);
         cls();
         spr(77, px, 40, 1, 2);
     }
 
     function _update() {
-        console.log("_update called");
-        px ++;
-        document.addEventListener("keydown", keyDownHandler, false);
-        document.addEventListener("keyup", keyUpHandler, false);
-        console.log(keyPressed)
+        if (btn(1)) px++;
     }
 
     function _init() {
-        console.log("_init called");
-        const systems = [
-            [0, 0, "Pico-8", 128, 128], // #,colours,name,w,h
-            [1, 1, "Pico-8 Alt", 64, 64],
-            [2, 3, "ZX Spectrum", 256, 192] // will actually be system 10
-        ]
-        let sys = 0; // 0 = Pico
-        let w = systems[sys][3];
-        let h = systems[sys][4];
-        let curcol = systems[sys][0]; // current colour
-        const colours = [
+        sys = 0;
+        w = systems[sys][3];
+        h = systems[sys][4];
+        curcol = systems[sys][0];
+
+        colours = [
             [
-                [0, 0, "#000000", "black"], // Pico default colours
+                [0, 0, "#000000", "black"],
                 [0, 1, "#1D2B53", "dark-blue"],
                 [0, 2, "#7E2553", "dark-purple"],
                 [0, 3, "#008751", "dark-green"],
@@ -75,7 +83,7 @@ window.onload = function () {
                 [0, 15, "#FFCCAA", "light-peach"]
             ],
             [
-                [1, 128, "#291814", "brownish-black"], // Pico Alt Colours
+                [1, 128, "#291814", "brownish-black"],
                 [1, 129, "#111D35", "darker-blue"],
                 [1, 130, "#422136", "darker-purple"],
                 [1, 131, "#125359", "blue-green"],
@@ -93,128 +101,107 @@ window.onload = function () {
                 [1, 143, "#FF9D81", "peach"]
             ],
             [
-                [10, 0, "#000000", "Black"], // ZX Spectrum
-                [10, 1, "#0000FF", "Blue"],
-                [10, 2, "#FF0000", "Red"],
-                [10, 3, "#FF00FF", "Magenta"],
-                [10, 4, "#00FF00", "Green"],
-                [10, 5, "#00FFFF", "Cyan"],
-                [10, 6, "#FFFF00", "Yellow"],
-                [10, 7, "#FFFFFF", "White"],
-                [10, 8, "#0000d8", "bright-blue"]
-                [10, 2, "#d80000", "bright-ed"],
-                [10, 3, "#d800d8", "bright-magenta"],
-                [10, 4, "#00d800", "bright-green"],
-                [10, 5, "#00d8d8", "bright-cyan"],
-                [10, 6, "#d8d800", "bright-yellow"],
-                [10, 7, "#d8d8d8", "bright-white"]
+                [10, 0,  "#000000", "black"],
+                [10, 1,  "#0000FF", "blue"],
+                [10, 2,  "#FF0000", "red"],
+                [10, 3,  "#FF00FF", "magenta"],
+                [10, 4,  "#00FF00", "green"],
+                [10, 5,  "#00FFFF", "cyan"],
+                [10, 6,  "#FFFF00", "yellow"],
+                [10, 7,  "#FFFFFF", "white"],
+                [10, 8,  "#0000D8", "bright-blue"],
+                [10, 9,  "#D80000", "bright-red"],
+                [10, 10, "#D800D8", "bright-magenta"],
+                [10, 11, "#00D800", "bright-green"],
+                [10, 12, "#00D8D8", "bright-cyan"],
+                [10, 13, "#D8D800", "bright-yellow"],
+                [10, 14, "#D8D8D8", "bright-white"]
             ]
-        ]
-        // default x & y
-        // default scaling
+        ];
     }
 
-    function print(words, px, py, col) { // change to print.at?
-        // calculate relative px & py by font size + padding * scaling
-        // make relative to canvas size - isn't that automatic?
-        // font size = size 6 + padding 1
-        // presuming padding is all around - eg. 2
-        // if scaled multiply by scale
-        // call colour function to match colour number
-
-        //    screen.font = "24px Courier New";
-        screen.font = "24px VT323"
-        // one of these - https://fonts.google.com/?category=Monospace or Courier New
-        // change font size to be relative to scaling
-        // add padding?
-        screen.fillStyle = col;
-        // colour not added
-        // pick up from default / colour command
+    function print(words, px, py, col) {
+        screen.font = "24px VT323";
+        screen.fillStyle = (typeof col === "number") ? colours[sys][col][2] : col;
         screen.fillText(words, px, py);
     }
 
     function colour(col) {
-        // change colour here
         curcol = col;
         screen.fillStyle = colours[sys][col][2];
-        console.log("colour " + colours[sys][col][2])
-        return (colours[sys][col][2]) // so we can look up what current colour value is
-        // should this be number? (nstead of hex?)
+        return colours[sys][col][2];
     }
 
-    function color(col) { // American spelling
-        colour(col);
+    function color(col) {
+        return colour(col);
     }
 
     function cls() {
         screen.clearRect(0, 0, canvas.width, canvas.height);
-        // w , h
     }
 
     function sspr(img, sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y) {
-        console.log("sspr called");
-//        screen.translate(dx + dx, dy + dy);  //location on the canvas - if called more than once it adds to existing
-        // double check need the +
-
-        // Set flip & position
-        let fx = 1;
-        let fy = 1;
-        if (flip_x === true) {
-            fx = -1; // + dw?
-            dx *= -1; // + dh?
-        }
-        if (flip_y === true) {
-            fy = -1;
-            dy *= -1;
-        }
-
-        //      testing
-        //    console.log(imgsrc, sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)
-        //    console.log(flip_x, fx, flip_y, fy);
-
-        screen.scale(fx, fy);  //This does your mirroring/flipping
-        // -1, 1 is flipped horizontally
-        // 1, -1 is flipped vertically
-
-        // draw ssprite
-        screen.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh)
-        // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+        screen.save();
+        var fx = flip_x === true ? -1 : 1;
+        var fy = flip_y === true ? -1 : 1;
+        screen.translate(dx + (fx === -1 ? dw : 0), dy + (fy === -1 ? dh : 0));
+        screen.scale(fx, fy);
+        screen.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
+        screen.restore();
     }
 
     function spr(n, x, y, w, h, flip_x, flip_y) {
-        console.log("spr called");
-        // x,y
-        dx = x;
-        dy = y;
-
-        // n
-        // sx = 105 // something like 77*8
-        // sy = 77-45; // need to get forumla right
-        sx = 8 * (n % 16);
-        sy = 8 * Math.round(n / 16) - 8; // bloody hell - this actually worked
-
-        // w,h
-        sw = w * 8; // sw = width - w*8 (7+1) - is this one too high?
-        sh = h * 8; // sh = height - h*8 (7+1) - is this one too high?
-
-        // scale - presume unscaled
-        dw = w * 8; // could just do dw = sw
-        dh = h * 8; // could just do dh = sh
-
+        var dx = x;
+        var dy = y;
+        var sprcellx = n % mapgrid;
+        var sprcelly = Math.floor(n / mapgrid); // was Math.round - 8 (off by half a row)
+        var sx = sprcellx * sprsize;
+        var sy = sprcelly * sprsize;
+        var sw = w * sprsize;
+        var sh = h * sprsize;
+        var dw = w * sprsize;
+        var dh = h * sprsize;
         sspr(img, sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y);
-        // console.log(img, sx, sy, sw, sh, dx, dy, dw, dh, flip_x, flip_y)
+    }
+
+    function btn(checkNum) {
+        switch (checkNum) {
+            case 0: return keyPressedLeft;
+            case 1: return keyPressedRight;
+            case 2: return keyPressedUp;
+            case 3: return keyPressedDown;
+            default: return false;
+        }
     }
 
     function keyDownHandler(e) {
-        if(e.key == "Right" || e.key == "ArrowRight") {
-            keyPressed = true;
-        }
+        if (e.code == "ArrowLeft")       { keyPressedLeft  = true; keyPressedNum = 0; }
+        else if (e.code == "ArrowRight") { keyPressedRight = true; keyPressedNum = 1; }
+        else if (e.code == "ArrowUp")    { keyPressedUp    = true; keyPressedNum = 2; }
+        else if (e.code == "ArrowDown")  { keyPressedDown  = true; keyPressedNum = 3; }
     }
-    
+
     function keyUpHandler(e) {
-        if(e.key == "Right" || e.key == "ArrowRight") {
-            keyPressed = false;
+        if (e.code == "ArrowLeft")       keyPressedLeft  = false;
+        else if (e.code == "ArrowRight") keyPressedRight = false;
+        else if (e.code == "ArrowUp")    keyPressedUp    = false;
+        else if (e.code == "ArrowDown")  keyPressedDown  = false;
+        if (!keyPressedLeft && !keyPressedRight && !keyPressedUp && !keyPressedDown) {
+            keyPressedNum = 7;
         }
     }
 
-}
+    _init();
+
+    function loop() {
+        _update();
+        _draw();
+        requestAnimationFrame(loop);
+    }
+
+    if (img.complete) {
+        loop();
+    } else {
+        img.onload = loop;
+    }
+};
