@@ -1,6 +1,6 @@
 # Pico-JS Javascript Game library
 
-**Current version: 0.4.0**
+**Current version: 0.4.3**
 
 A simple JavaScript game library, which makes it easy to create canvas-based games playable through a web browser.
 
@@ -32,11 +32,14 @@ This will cover -
 * _update
 * _init
 * BTN (0-5: arrows + O/X)
+* BTNP (with Pico-8 auto-repeat)
 * CLS (with optional colour)
 * COLOUR / COLOR
 * SSPR
 * SPR
-* MAP (image-backed)
+* MAP (data-array, with image-backed fallback)
+* MGET / MSET
+* FGET / FSET
 * PRINT
 * RECT / RECTFILL
 * LINE
@@ -44,16 +47,11 @@ This will cover -
 * OVAL / OVALFILL
 * PSET / PGET
 * CAMERA
+* ADD / DEL / DELI / FOREACH / ALL / COUNT
+* FLR / SIN / COS / ATAN2 / RND
 
 ### Roadmap / To Add -
 
-* Mget - get sprite # @ x,y & Mset - set sprite # @ x,y - 0.4.1 (stubs present in 0.4.0)
-* Fget - get sprite # flag & Fset - set sprite # flag - 0.4.1 (stubs present in 0.4.0)
-* Data-array map format (replaces image-backed map) - 0.4.1
-* `.p8` → JS conversion tool - 0.4.2
-* BTNP (just-pressed) - 0.4.3+
-* Table helpers (add / del / foreach / all) - 0.4.3+
-* Pico-8 math quirks (flr / sin / cos in turns / atan2 with swapped args / rnd) - 0.4.3+
 * ? SGet & SSet
 * Pal / Palt -  if possible
 * Music - just play exported?
@@ -89,6 +87,105 @@ This will cover -
 * Continuous runner
 
 ## Changelog
+
+### 0.4.3 — btnp + table helpers + Pico-8 math quirks
+
+New input primitive, a set of Lua-style table helpers, and Pico-8's idiosyncratic trig/random functions — all installed as globals alongside the existing set.
+
+```js
+// btnp with Pico-8 auto-repeat
+if (btnp(0)) menuIx--;   // fires on press, then after 15 frames held,
+if (btnp(1)) menuIx++;   // then every 4 frames while still held
+
+// Lua-style tables over JS arrays
+var particles = [];
+add(particles, { x: 10, y: 20 });   // returns the value added
+foreach(all(particles), function (p) {
+    p.y += 1;
+    if (p.y > 128) del(particles, p);   // del during all() iteration is safe
+});
+
+// Math quirks
+var r = rnd(100);             // number in [0, 100)
+var c = rnd([8, 9, 10, 11]);  // random element from array
+var x = 64 + cos(t) * 20;     // t in turns, 0..1 = full circle
+var y = 64 + sin(t) * 20;     // sin is flipped for Pico-8's y-down
+var a = atan2(dx, dy);        // args swapped vs JS, returns turn
+```
+
+`btnp(i)` returns `true` on the first frame a button is held, then again 15 frames later, then every 4 frames while still held. Matches Pico-8's timing for menu navigation and held-key behaviours. Per-button counters reset to 0 on release, so a quick tap always fires only once.
+
+Table helpers — thin JS wrappers over arrays so ported code reads the same. `add(t, v)` pushes and returns `v`; `add(t, v, i)` inserts at Pico-8's 1-based index. `del(t, v)` removes the first match and returns it (or `null` if missing). `deli(t, i)` removes by 1-based index; `deli(t)` with no index removes the last. `foreach(t, f)` skips `null` / `undefined`. `all(t)` returns a defensive copy so `del()` during `for v of all(t)` can't skip entries. `count(t)` returns length; `count(t, v)` returns occurrences.
+
+Math quirks keep the Pico-8 muscle memory intact. `flr` is `Math.floor`. `sin(x)` takes turns and is inverted — `sin(0.25) = -1` — matching Pico-8's y-down screen convention; `cos(x)` takes turns but isn't flipped. `atan2(dx, dy)` uses Pico-8's argument order and returns a turn in `[0, 1)` with east=0, south=0.25, west=0.5, north=0.75. `rnd()` returns `[0, 1)`; `rnd(n)` returns `[0, n)`; `rnd(arr)` returns a random element.
+
+Test harness: `test-0.4.3.html` + `test-0.4.3-game.js` — a menu whose left/right navigation demonstrates the btnp auto-repeat timing (tap once = step one; hold = pause then auto-scroll), a sparkle particle list exercising `add`/`del`/`foreach`/`all`/`count` with safe mid-iteration deletion, and an orbiting marker driven by `sin`/`cos` on a turn counter with an arrow aiming at it via `atan2`. All drawn with primitives so no spritesheet is required.
+
+### 0.4.2 — `.p8` → JS data module converter
+
+No library API changes. `picoJS-0.4.2.js` is a straight version bump of `picoJS-0.4.1.js` so demos and tooling can target a stable string. The real deliverable is a new CLI at `tools/p8-to-js.js` that parses a Pico-8 cart and emits a JS module containing `mapData` + `spriteFlags` for `picoJS.run()`.
+
+```sh
+node tools/p8-to-js.js mygame.p8 mygame-data.js
+```
+
+The emitted file works in two ways: loaded as a `<script>` tag it defines `mapData` / `spriteFlags` as globals, or `require()`d from Node it exposes them via `module.exports`. Include it next to `picoJS-0.4.2.js` and hand both straight to `run()`:
+
+```html
+<script src="picoJS-0.4.2.js"></script>
+<script src="mygame-data.js"></script>
+<script src="mygame.js"></script>
+```
+
+```js
+picoJS.run({
+    sprites:     "sprites.png",
+    mapData:     mapData,       // from mygame-data.js
+    spriteFlags: spriteFlags,   // ditto
+    init: _init, update: _update, draw: _draw
+});
+```
+
+What the converter parses:
+
+* `__map__` — 32 rows × 256 hex chars. Output is a full 128×32 nested array (rows shorter than 256 chars, or the section missing entirely, are zero-padded).
+* `__gff__` — up to 2 rows × 256 hex chars = 256 flag bytes. Output is a flat 256-element array.
+
+What it doesn't touch: `__gfx__`, `__sfx__`, `__music__`, `__lua__`. Keep authoring your spritesheet PNG yourself (same convention as the 0.4.1 demo).
+
+Dependencies: none — pure Node, stdlib only. Runs as `node tools/p8-to-js.js input.p8 [output.js]`; with no output argument it writes to stdout.
+
+Test harness: `test-0.4.2.html` + `test-0.4.2-game.js` drive the same bordered-room-with-coins gameplay as 0.4.1, but the map + flags now come from `tests/sample-mapdata.js`, which is generated from `tests/sample.p8` by the converter. Re-run the CLI any time you edit the `.p8` and the page picks up the change on reload.
+
+### 0.4.1 — data-array maps + sprite flags (mget/mset/fget/fset)
+
+Maps now live as a JavaScript array of sprite indices instead of a decoded PNG. Supply `mapData` to `picoJS.run()` as either a 2D nested array (`mapData[y][x]`) or a flat typed / plain array plus `mapWidth`. Image-based maps still work as a fallback when `mapData` isn't provided — existing 0.4.0 games keep running unchanged.
+
+Sprite flags are a 256-entry byte table. Authored up front via `opts.spriteFlags: [..]` or at runtime with `fset(n, f, v)`. Used by `map()`'s new layer filter and by game logic via `fget()`.
+
+```js
+picoJS.run({
+    sprites:     "sprites.png",
+    mapData:     [[1,1,1],[1,0,1],[1,1,1]],   // tiny 3x3 map
+    spriteFlags: [0x00, 0x01, 0x02],          // sprite 1 solid, sprite 2 pickup
+    init: _init, update: _update, draw: _draw
+});
+```
+
+New functions — all installed as globals alongside the existing set:
+
+* `mget(x, y)` — sprite number at tile (x, y). Returns `0` for out-of-bounds.
+* `mset(x, y, v)` — write a sprite number into a tile. Out-of-bounds silently no-op.
+* `fget(n)` — full flag byte (0..255) for sprite n.
+* `fget(n, f)` — boolean for bit f (0..7).
+* `fset(n, v)` — replace the whole flag byte.
+* `fset(n, f, v)` — set or clear bit f.
+* `picoJS.setMapData(src, widthHint)` — swap the map at runtime (same accepted shapes as `mapData`).
+* `picoJS.mapWidth` / `picoJS.mapHeight` — read-only tile dimensions.
+
+`map()` was rewritten to be data-driven: it iterates the requested tile rect and draws each non-zero sprite individually. Sprite `0` is treated as empty (Pico-8 behaviour — sprite 0 never renders inside a map). When the optional `mlayer` bitmask argument is supplied, a tile is drawn only if `(fget(n) & mlayer) !== 0`, so a single data map cleanly supports multiple render layers (e.g. `map(0,0,0,0,16,16,1)` for walls only, `map(0,0,0,0,16,16,2)` for pickups only). Leaving `mlayer` out draws everything. The old image-based fallback still kicks in when no `mapData` is present and `opts.map: "path.png"` is supplied — gives anyone mid-migration a chance to catch up.
+
+Test harness: `test-0.4.1.html` + `test-0.4.1-game.js` — a 16×16 hand-authored map with wall tiles (flag bit 0 = solid) and coins (flag bit 1 = collectible). Player movement uses `fget(mget(...), 0)` for collision, walking onto a coin clears it via `mset`, `Z` stamps a coin at the current tile, `X` toggles the wall-only layer render. `picoJS-0.4.0.js` + `test-0.4.0.html` remain untouched for anyone mid-port.
 
 ### 0.4.0 — namespace refactor, drawing primitives & camera
 
