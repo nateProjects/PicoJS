@@ -13,15 +13,11 @@ window.addEventListener('gamepadconnected', (event) => {
 
 setInterval(() => {
     if(gamepadIndex !== undefined) {
-        // a gamepad is connected and has an index
         const myGamepad = navigator.getGamepads()[gamepadIndex];
-        document.body.innerHTML = ""; // reset page
-        myGamepad.buttons.map(e => e.pressed).forEach((isPressed, buttonIndex) => {
-            if(isPressed) {
-                // button is pressed; indicate this on the page
-                document.body.innerHTML += `<h1>Button ${buttonIndex} is pressed</h1>`;
-            }
-        })
+        const pressed = myGamepad.buttons
+            .map((e, i) => e.pressed ? `<h1>Button ${i} is pressed</h1>` : '')
+            .join('');
+        document.body.innerHTML = pressed || '<h1>No buttons pressed</h1>';
     }
 }, 100) // print buttons that are pressed 10 times per second
 </script>

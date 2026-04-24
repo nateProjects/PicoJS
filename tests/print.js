@@ -1,5 +1,3 @@
-let px = 30;
-let py = 30;
     // 512 is 128 x 4 scaling
     // should be multiplying x & y by scaling
 

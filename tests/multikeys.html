@@ -1,3 +1,7 @@
+<!DOCTYPE html>
+<html>
+<head></head>
+<body>
 
 <div id="box">
     <input type="text">
@@ -9,7 +13,7 @@ let keysPressed = {};
 document.addEventListener('keydown', (event) => {
    keysPressed[event.key] = true;
 
-   if (keysPressed['Control'] && event.key == 'a') {
+   if (keysPressed['Control'] && event.key == 'z') {
        alert(event.key);
    }
 });
@@ -31,3 +35,5 @@ document.addEventListener('keyup', (event) => {
 <!-- old example: https://stackoverflow.com/questions/56141481/how-to-detect-if-multiple-keys-are-being-pressed-at-the-same-time-in-html-using -->
 
 <!-- need to look at timings - how long after x happens can y be pressed? -->
+</body>
+</html>
