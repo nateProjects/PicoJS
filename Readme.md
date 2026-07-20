@@ -1,6 +1,6 @@
 # Pico-JS Javascript Game library
 
-**Current version: 0.4.9**
+**Current version: 0.4.10**
 
 A simple JavaScript game library, which makes it easy to create canvas-based games playable through a web browser.
 
@@ -49,6 +49,8 @@ This will cover -
 * CAMERA
 * ADD / DEL / DELI / FOREACH / ALL / COUNT
 * FLR / SIN / COS / ATAN2 / RND
+* MID / MIN / MAX / ABS / CEIL / SGN
+* BAND / BOR / BXOR / BNOT / SHL / SHR / LSHR (integer-exact; not fixed-point-exact for fractional operands)
 * SGET (+ SGETC, a picoJS-only canvas-decoded variant — not a Pico-8 function)
 * PAL / PALT (draw palette only — see roadmap for the screen palette, p=1)
 
@@ -89,6 +91,24 @@ This will cover -
 * Continuous runner
 
 ## Changelog
+
+### 0.4.10 — math helpers: mid/min/max/abs/ceil/sgn + bitwise ops
+
+None of these existed as globals before — real carts call them bare constantly (`mid()` especially, for clamping: `x = mid(0, x, 127)`), and Pico-8's Lua dialect predates native bitwise operators, so `band`/`bor`/`bxor`/`bnot`/`shl`/`shr`/`lshr` are ordinary function calls rather than `&`/`|`/`^`/`~`/`<<`/`>>`.
+
+```js
+x = mid(0, x, 127);   // clamp — the single most common use of any of these
+band(flags, 0x04)     // flag check
+```
+
+Two things worth knowing, both are deliberate, bounded approximations rather than oversights:
+
+* **`sgn(0)` is `1`, not `0`** — a genuine Pico-8 quirk (unlike `Math.sign`, which returns `0` for zero). Only negative numbers return `-1`.
+* **Bitwise ops treat operands as plain 32-bit integers** (via `|0`), not Pico-8's actual 16.16 fixed-point representation. This is exact for whole-number operands — the overwhelming majority of real usage (flags, bit-packing) — but won't be fixed-point-exact for fractional inputs. Consistent with the rest of picoJS not modelling Pico-8's fixed-point number system anywhere else either (`flr` is plain `Math.floor`, etc.).
+
+`mid(a, b, c)` uses the classic branchless median formula (`max(min(a,b), min(max(a,b), c))`), not a sort. `shr` is arithmetic (sign-preserving, matches JS `>>`); `lshr` is logical (zero-fill, matches JS `>>>`). All installed as globals alongside `flr`/`sin`/`cos`/`atan2`/`rnd`.
+
+Verified with direct assertions (21 cases covering every function, including the `sgn(0)` quirk, negative-number `ceil`/`shr`, and an `lshr(-1, 28) === 15` unsigned-shift check) rather than a browser harness — pure math with no canvas/DOM involvement, so a fast, exhaustive check made more sense than a visual test page for this one.
 
 ### 0.4.9 — pal(c0, c1, [p]) / palt(c, t), plus real sprite transparency
 

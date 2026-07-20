@@ -1,6 +1,18 @@
-// picoJS 0.4.9
-// ============
+// picoJS 0.4.10
+// =============
 // New in this milestone:
+//   * Math helpers — mid, min, max, abs, ceil, sgn, and the bitwise-op
+//     functions (band, bor, bxor, bnot, shl, shr, lshr) that Pico-8's Lua
+//     calls as functions rather than operators (its dialect predates native
+//     bitwise operators). All installed as globals alongside flr/sin/cos/
+//     atan2/rnd. sgn(0) is 1, not 0 — a real Pico-8 quirk (unlike
+//     Math.sign). Bitwise ops treat operands as plain 32-bit integers via
+//     |0 — exact for whole-number operands (the common case: flags,
+//     bit-packing) but not fixed-point-exact for fractional inputs, since
+//     picoJS doesn't model Pico-8's 16.16 fixed-point number system
+//     anywhere else either.
+//
+// Carried forward (0.4.9):
 //   * pal(c0, c1, [p]) / palt(c, t) — draw-time colour remap and sprite
 //     transparency, applied to every drawing primitive AND sprites/map()
 //     alike (matching real Pico-8: pal() affects the whole draw pipeline,
@@ -1088,6 +1100,36 @@
         return Math.random();
     };
 
+    picoJS.ceil = Math.ceil;
+    picoJS.abs  = Math.abs;
+    picoJS.min  = function (a, b) { return Math.min(a, b); };
+    picoJS.max  = function (a, b) { return Math.max(a, b); };
+    // mid(a,b,c) — the median of three values (classic branchless formula,
+    // not a sort — this is what real carts use constantly for clamping,
+    // e.g. mid(0, x, 127)).
+    picoJS.mid  = function (a, b, c) {
+        return Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
+    };
+    // sgn(x) — Pico-8 quirk: sgn(0) is 1, not 0 (unlike Math.sign). Only
+    // negative numbers return -1.
+    picoJS.sgn  = function (x) { return x < 0 ? -1 : 1; };
+
+    // Bitwise ops (0.4.10) — Pico-8 Lua predates native bitwise operators, so
+    // these are called as functions. Pico-8 numbers are 16.16 fixed-point and
+    // these operate on the raw 32-bit representation; picoJS instead treats
+    // operands as plain 32-bit integers via |0, which matches real Pico-8
+    // exactly for whole-number operands (the overwhelming majority of real
+    // usage — flags, bit-packing) but won't be fixed-point-exact for
+    // fractional inputs. shr is arithmetic (sign-preserving, matches >>),
+    // lshr is logical (zero-fill, matches >>>).
+    picoJS.band = function (a, b) { return (a | 0) & (b | 0); };
+    picoJS.bor  = function (a, b) { return (a | 0) | (b | 0); };
+    picoJS.bxor = function (a, b) { return (a | 0) ^ (b | 0); };
+    picoJS.bnot = function (a)    { return ~(a | 0); };
+    picoJS.shl  = function (a, b) { return (a | 0) << (b | 0); };
+    picoJS.shr  = function (a, b) { return (a | 0) >> (b | 0); };
+    picoJS.lshr = function (a, b) { return (a | 0) >>> (b | 0); };
+
     // --- Lifecycle ----------------------------------------------------------
 
     picoJS.run = function (opts) {
@@ -1388,11 +1430,14 @@
             // Bitmap fonts (0.4.8)
             "registerFont", "setFont", "fontInfo",
             // Palette (0.4.9)
-            "pal", "palt"
+            "pal", "palt",
+            // Math helpers (0.4.10)
+            "ceil", "abs", "min", "max", "mid", "sgn",
+            "band", "bor", "bxor", "bnot", "shl", "shr", "lshr"
         ].forEach(function (n) { target[n] = picoJS[n]; });
     };
 
-    picoJS.version = "0.4.9";
+    picoJS.version = "0.4.10";
 
     global.picoJS = picoJS;
 }(typeof window !== "undefined" ? window : this));
