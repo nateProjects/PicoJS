@@ -1,6 +1,20 @@
-// picoJS 0.4.10
+// picoJS 0.4.11
 // =============
 // New in this milestone:
+//   * sub(str, i, [j]) — Lua-style substring, 1-based/inclusive, clamped
+//     rather than erroring on out-of-range indices. No negative-from-end
+//     indexing (matches Pico-8's own sub(), not Lua's string.sub).
+//   * tostr(val, [flags]) / tonum(val) — value <-> string conversion. The
+//     common no-flags path (numbers/strings/booleans -> string) is exact;
+//     tostr's hex (0x1) and no-decimal (0x2) flags are a reasonable
+//     approximation of Pico-8's actual 16.16 fixed-point formatting, not
+//     byte-identical to it.
+//   * printh(str) — prints to the devtools console. Pico-8's file-output
+//     arguments (desktop-only) have no browser equivalent and are ignored.
+//   * time() / t() — real wall-clock seconds elapsed since picoJS.run()
+//     started (not frame count), matching Pico-8's "since cart booted".
+//
+// Carried forward (0.4.10):
 //   * Math helpers — mid, min, max, abs, ceil, sgn, and the bitwise-op
 //     functions (band, bor, bxor, bnot, shl, shr, lshr) that Pico-8's Lua
 //     calls as functions rather than operators (its dialect predates native
@@ -209,6 +223,10 @@
     var targetFps = 30;
     var tickIntervalMs = 1000 / targetFps;
     var nextTickAt = 0;
+
+    // time()/t() reference point (0.4.11) — set at the top of run(), so
+    // time() returns real seconds elapsed since the cart "booted".
+    var startTimeMs = 0;
 
     // Data-backed map (0.4.1)
     var mapDataArr = null;  // 2D internal form: mapDataArr[y][x] = sprite#
@@ -1130,6 +1148,79 @@
     picoJS.shr  = function (a, b) { return (a | 0) >> (b | 0); };
     picoJS.lshr = function (a, b) { return (a | 0) >>> (b | 0); };
 
+    // --- Strings / misc (0.4.11) ---------------------------------------------
+
+    // sub(str, i, [j]) — Lua-style substring, 1-based and inclusive on both
+    // ends (matching Pico-8, not Lua's negative-index support — Pico-8's own
+    // sub() doesn't count from the end either). j defaults to the end of the
+    // string. Out-of-range indices are clamped rather than erroring.
+    picoJS.sub = function (str, i, j) {
+        str = String(str);
+        var len = str.length;
+        i = (i === undefined || i === null) ? 1 : (i | 0);
+        j = (j === undefined || j === null) ? len : (j | 0);
+        if (i < 1) i = 1;
+        if (j > len) j = len;
+        if (i > j) return "";
+        return str.substring(i - 1, j);
+    };
+
+    // tostr(val, [flags]) — flags is a bitfield: 0x1 = hex (approximated as
+    // Pico-8's 16.16 fixed-point "0x0001.8000" form), 0x2 = drop the
+    // fractional part. Only the common no-flags path (numbers/strings/
+    // booleans -> string, used constantly for score/HUD text) is guaranteed
+    // to read exactly like Pico-8; the flag formats are a reasonable
+    // approximation, not fixed-point-exact, matching this library's existing
+    // stance on Pico-8's actual number representation.
+    picoJS.tostr = function (val, flags) {
+        if (typeof val === "string") return val;
+        if (typeof val === "boolean") return val ? "true" : "false";
+        if (val === undefined || val === null) return "";
+        if (typeof val === "number") {
+            flags = flags | 0;
+            if (flags & 1) {
+                var neg = val < 0;
+                var v = Math.abs(val);
+                var intPart = Math.floor(v) & 0xFFFF;
+                var fracPart = Math.round((v - Math.floor(v)) * 0x10000) & 0xFFFF;
+                return (neg ? "-" : "") + "0x" +
+                    ("000" + intPart.toString(16)).slice(-4) + "." +
+                    ("000" + fracPart.toString(16)).slice(-4);
+            }
+            if (flags & 2) return String(Math.floor(val));
+            return String(val);
+        }
+        return String(val);
+    };
+
+    // tonum(val) — parses a string to a number, returning undefined (this
+    // library's stand-in for Pico-8's nil) if it isn't one. JS's Number()
+    // already parses "0x1a"-style hex and negative/decimal forms natively.
+    picoJS.tonum = function (val) {
+        if (typeof val === "number") return val;
+        if (typeof val !== "string") return undefined;
+        var s = val.trim();
+        if (s === "") return undefined;
+        var n = Number(s);
+        return isNaN(n) ? undefined : n;
+    };
+
+    // printh(str) — Pico-8 prints to the host console (or a file, on
+    // desktop Pico-8). In a browser the only sensible target is the
+    // devtools console; any file-related arguments Pico-8 supports are
+    // meaningless here and ignored.
+    picoJS.printh = function (str) {
+        console.log(String(str));
+    };
+
+    // time() / t() — seconds elapsed (real wall-clock time, not frame count)
+    // since picoJS.run() started, matching Pico-8's "since cart booted".
+    picoJS.time = function () {
+        var now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        return (now - startTimeMs) / 1000;
+    };
+    picoJS.t = picoJS.time;
+
     // --- Lifecycle ----------------------------------------------------------
 
     picoJS.run = function (opts) {
@@ -1142,6 +1233,7 @@
         cam_x = 0;
         cam_y = 0;
         activeFontName = "pico8"; // registerFont()-added fonts persist; only the active choice resets
+        startTimeMs = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
 
         // Reset map / flag state for repeat run() calls during development.
         mapDataArr = null; mapWidthN = 0; mapHeightN = 0;
@@ -1433,11 +1525,13 @@
             "pal", "palt",
             // Math helpers (0.4.10)
             "ceil", "abs", "min", "max", "mid", "sgn",
-            "band", "bor", "bxor", "bnot", "shl", "shr", "lshr"
+            "band", "bor", "bxor", "bnot", "shl", "shr", "lshr",
+            // Strings / misc (0.4.11)
+            "sub", "tostr", "tonum", "printh", "time", "t"
         ].forEach(function (n) { target[n] = picoJS[n]; });
     };
 
-    picoJS.version = "0.4.10";
+    picoJS.version = "0.4.11";
 
     global.picoJS = picoJS;
 }(typeof window !== "undefined" ? window : this));

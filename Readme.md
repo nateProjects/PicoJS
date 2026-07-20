@@ -1,6 +1,6 @@
 # Pico-JS Javascript Game library
 
-**Current version: 0.4.10**
+**Current version: 0.4.11**
 
 A simple JavaScript game library, which makes it easy to create canvas-based games playable through a web browser.
 
@@ -51,6 +51,10 @@ This will cover -
 * FLR / SIN / COS / ATAN2 / RND
 * MID / MIN / MAX / ABS / CEIL / SGN
 * BAND / BOR / BXOR / BNOT / SHL / SHR / LSHR (integer-exact; not fixed-point-exact for fractional operands)
+* SUB
+* TOSTR / TONUM (no-flags path exact; tostr's hex/no-decimal flags are an approximation)
+* PRINTH (console only — no file-output equivalent in a browser)
+* TIME / T
 * SGET (+ SGETC, a picoJS-only canvas-decoded variant — not a Pico-8 function)
 * PAL / PALT (draw palette only — see roadmap for the screen palette, p=1)
 
@@ -91,6 +95,25 @@ This will cover -
 * Continuous runner
 
 ## Changelog
+
+### 0.4.11 — sub / tostr / tonum / printh / time+t
+
+The second "trivial but commonly hit" batch — strings and misc, following straight on from 0.4.10's math helpers.
+
+```js
+sub("hello", 1, 3)     // "hel" — 1-based, inclusive, clamped (not Lua's negative-from-end indexing)
+tostr(score)           // "42" — the common no-flags path
+tonum("42")            // 42; tonum("nope") -> undefined (this library's nil)
+printh("debug: " .. x) // -> console.log
+t()                    // real seconds elapsed since picoJS.run() started
+```
+
+* **`sub(str, i, [j])`** — 1-based and inclusive on both ends, matching Pico-8's own `sub()` (not Lua's `string.sub`, which supports negative indices counting from the end — Pico-8's doesn't either, so neither does this). Out-of-range `i`/`j` are clamped rather than erroring; `j` defaults to the end of the string.
+* **`tostr(val, [flags])` / `tonum(val)`** — the common no-flags path (numbers/strings/booleans → string, and back) is exact and is what score/HUD code actually uses. `tostr`'s flags (`0x1` hex, `0x2` drop the fractional part) are a reasonable approximation of Pico-8's real 16.16 fixed-point formatting, not byte-identical to it — consistent with this library's existing stance elsewhere (`flr` is plain `Math.floor`, the bitwise ops in 0.4.10 aren't fixed-point-exact either). `tonum()` returns `undefined` — this library's stand-in for Lua `nil` — for anything that doesn't parse, and leans on JS's `Number()` already handling hex/decimal/negative forms natively.
+* **`printh(str)`** — straight to the devtools console. Pico-8's file-output arguments (desktop-only) have no browser equivalent and are ignored rather than approximated.
+* **`time()` / `t()`** — real wall-clock seconds since `picoJS.run()` started (a `startTimeMs` reference point captured at the top of `run()`), not a frame-count derivation — matches Pico-8's own "seconds since the cart booted" semantics, including continuing to advance correctly even if `_update`/`_draw` ticks get throttled or dropped.
+
+Verified with 23 direct assertions for `sub`/`tostr`/`tonum`/`printh`, plus a real-browser check for `time()`/`t()` specifically (the one function here that depends on `run()`'s lifecycle rather than being pure): measured `t()` immediately after `run()` and again after a real ~1.5s wait — the delta matched to within 30ms, confirming it tracks actual elapsed time rather than frame count.
 
 ### 0.4.10 — math helpers: mid/min/max/abs/ceil/sgn + bitwise ops
 
