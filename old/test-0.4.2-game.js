@@ -85,7 +85,7 @@ function _draw() {
 // `mapData` and `spriteFlags` are defined as globals by sample-mapdata.js
 // (which is loaded via <script> before this file). Hand them straight to run().
 picoJS.run({
-    sprites:     "tests/booty-sprites.png",
+    sprites:     "../tests/booty-sprites.png",
     mapData:     mapData,
     spriteFlags: spriteFlags,
     debug:       true,

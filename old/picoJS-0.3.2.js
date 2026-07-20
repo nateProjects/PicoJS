@@ -21,7 +21,7 @@ window.onload = function () {
     document.addEventListener("keydown", keyDownHandler, false);
     document.addEventListener("keyup", keyUpHandler, false);
     var img = new Image();
-    img.src = 'resources/spritesheet.png';
+    img.src = '../resources/spritesheet.png';
     img.onerror = function () { alert(img.src + ' failed to load.'); };
     var maps = new Image();
     maps.src = 'tests/booty-demake-map.png'; 

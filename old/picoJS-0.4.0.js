@@ -481,10 +481,10 @@
 
         var spriteSrc = opts.sprites
             || (typeof global.picoJS_spriteSrc === "string" && global.picoJS_spriteSrc)
-            || "tests/booty-sprites.png";
+            || "../tests/booty-sprites.png";
         var mapSrc = opts.map
             || (typeof global.picoJS_mapSrc === "string" && global.picoJS_mapSrc)
-            || "tests/booty-demake-map.png";
+            || "../tests/booty-demake-map.png";
 
         sprStatus = "loading " + spriteSrc;
         mapStatus = "loading " + mapSrc;

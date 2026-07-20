@@ -590,14 +590,14 @@
 
         var spriteSrc = opts.sprites
             || (typeof global.picoJS_spriteSrc === "string" && global.picoJS_spriteSrc)
-            || "tests/booty-sprites.png";
+            || "../tests/booty-sprites.png";
 
         // opts.map is only used when mapData isn't supplied. This keeps the
         // 0.4.0 image-map behaviour available for anyone mid-migration.
         var mapSrc = (!mapDataArr)
             ? (opts.map
                 || (typeof global.picoJS_mapSrc === "string" && global.picoJS_mapSrc)
-                || "tests/booty-demake-map.png")
+                || "../tests/booty-demake-map.png")
             : null;
 
         sprStatus = "loading " + spriteSrc;

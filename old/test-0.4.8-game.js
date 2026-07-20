@@ -109,6 +109,8 @@ picoJS.run({
     scale:  4, // render at native higher resolution — no CSS transform needed
                // (CSS transform: scale() + image-rendering: pixelated is an
                // inconsistent combination across browsers; this sidesteps it)
+    sprites: "../tests/booty-sprites.png", // archived in old/ — path adjusted from the root-level default
+    map: "../tests/booty-demake-map.png", // ditto — avoids a 404 for the unused default map image
     init:   _init,
     update: _update,
     draw:   _draw

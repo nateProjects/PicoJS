@@ -24,21 +24,21 @@ window.onload = function () {
     document.addEventListener("keyup", keyUpHandler, false);
 
     var img = new Image();
-    img.src = 'tests/booty-sprites.png';
+    img.src = '../tests/booty-sprites.png';
     img.onerror = function () { alert(img.src + ' failed to load.'); };
     var maps = new Image();
-    maps.src = 'tests/booty-demake-map.png'; 
+    maps.src = '../tests/booty-demake-map.png'; 
     maps.onerror = function () { alert(maps.src + ' failed to load.'); };   
     // Set the sources for the images
 
 //    var img = new Image();
 //    img.onerror = function () { alert(img.src + ' failed to load.'); };
-//    img.src = 'tests/booty-sprites.png';
+//    img.src = '../tests/booty-sprites.png';
 //    img.onload = _draw;
 
 //    var maps = new Image();
 //    maps.onerror = function () { alert(maps.src + ' failed to load.'); };
-//    maps.src = 'tests/booty-demake-map.png';
+//    maps.src = '../tests/booty-demake-map.png';
 //    maps.onload = _draw;
 
     loop();
@@ -249,7 +249,7 @@ window.onload = function () {
 
     function map() {
         screen.drawImage(maps,0,0);
-        //      screen.drawImage('tests/booty-demake-map.png', 0, 0, 128, 128, x, y, x+128, y+128)
+        //      screen.drawImage('../tests/booty-demake-map.png', 0, 0, 128, 128, x, y, x+128, y+128)
     }
 
     function btn(checkNum) {

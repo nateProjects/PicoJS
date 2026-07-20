@@ -54,11 +54,11 @@ window.onload = function () {
     // Asset paths — override before window.onload by setting
     // window.picoJS_spriteSrc / window.picoJS_mapSrc if you need different ones.
     var img = new Image();
-    img.src = (typeof window !== "undefined" && window.picoJS_spriteSrc) || 'tests/booty-sprites.png';
+    img.src = (typeof window !== "undefined" && window.picoJS_spriteSrc) || '../tests/booty-sprites.png';
     img.onerror = function () { console.error(img.src + ' failed to load.'); };
 
     var maps = new Image();
-    maps.src = (typeof window !== "undefined" && window.picoJS_mapSrc) || 'tests/booty-demake-map.png';
+    maps.src = (typeof window !== "undefined" && window.picoJS_mapSrc) || '../tests/booty-demake-map.png';
     maps.onerror = function () { console.error(maps.src + ' failed to load.'); };
 
 // Regular Pico-8-like code starts here

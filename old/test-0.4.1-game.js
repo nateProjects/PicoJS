@@ -145,7 +145,7 @@ function _draw() {
 }
 
 picoJS.run({
-    sprites:      "tests/booty-sprites.png",
+    sprites:      "../tests/booty-sprites.png",
     mapData:      demoMap,
     spriteFlags:  demoFlags,
     debug:        true,

@@ -35,10 +35,10 @@ window.onload = function () {
     document.addEventListener("keydown", keyDownHandler, false);
     document.addEventListener("keyup", keyUpHandler, false);
     var img = new Image();
-    img.src = 'resources/spritesheet.png';
+    img.src = '../resources/spritesheet.png';
     img.onerror = function () { alert(img.src + ' failed to load.'); };
     var maps = new Image();
-    maps.src = 'resources/spritesheet.png'; 
+    maps.src = '../resources/spritesheet.png'; 
     maps.onerror = function () { alert(maps.src + ' failed to load.'); };   
 
 // Regular Pico-8-like code starts here

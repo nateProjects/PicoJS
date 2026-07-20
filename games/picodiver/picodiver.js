@@ -1,7 +1,8 @@
 // picodiver.js
 // ============
 // Hand-port of picodiver2.p8 (Pico-8 Lua) to JavaScript, running on picoJS
-// 0.4.9. Source: /Users/nathan.taylor/Code/Personal/pico-code/PicoDiver/picodiver2.p8
+// (bundled copy: games/picodiver/picoJS.js). Source:
+// /Users/nathan.taylor/Code/Personal/pico-code/PicoDiver/picodiver2.p8
 //
 // Deliberately NOT ported (per current scope):
 //   * sfx(n) — all 5 call sites skipped (score/hit/death cues). Silent.

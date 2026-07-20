@@ -101,8 +101,8 @@ function _draw() {
 // DOM panel at bottom-left showing frame, fps, btn state, cam, asset load
 // status, picoJS.debugText and picoJS.log() lines.
 picoJS.run({
-    sprites: "tests/booty-sprites.png",
-    map:     "tests/booty-demake-map.png",
+    sprites: "../tests/booty-sprites.png",
+    map:     "../tests/booty-demake-map.png",
     debug:   true,
     init:   _init,
     update: _update,
