@@ -31,9 +31,11 @@ picoJS.run({
 
 ## Porting a real Pico-8 cart
 
-`tools/p8-to-js.js` converts a `.p8` cart's map, sprite flags, and sprite pixel data into a JS data module `picoJS.run()` can load directly (`node tools/p8-to-js.js mygame.p8 mygame-data.js`). It doesn't touch `__gfx__` as an *image* (you still need an actual spritesheet PNG for `spr()`/`sspr()` to draw with) or `__lua__` at all — porting the actual game logic from Lua is a manual, cart-by-cart job.
+`tools/p8-to-js.js` converts a `.p8` cart's map, sprite flags, and sprite pixel data into a JS data module `picoJS.run()` can load directly (`node tools/p8-to-js.js mygame.p8 mygame-data.js`). 
 
-`games/picodiver/` is a complete worked example: a hand-port of a real, previously-shipped Pico-8 cart, kept as the project's actively-maintained integration test. Worth reading alongside the converter if you're about to port something yourself.
+It doesn't touch `__gfx__` as an image (you still need an actual spritesheet PNG for `spr()`/`sspr()` to draw with) or `__lua__` at all — porting the actual game logic from Lua is a manual, cart-by-cart job. Sound `sfx` conversion is not supported.
+
+`games/picodiver/` is a port of an existing Pico-8 cart, used as the project's actively-maintained integration test. It is worth comparing alongside the converter if you're about to port something yourself.
 
 ## More
 
