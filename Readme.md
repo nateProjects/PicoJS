@@ -1,6 +1,6 @@
 # Pico-JS Javascript Game library
 
-**Current version: 0.4.3**
+**Current version: 0.4.4**
 
 A simple JavaScript game library, which makes it easy to create canvas-based games playable through a web browser.
 
@@ -49,10 +49,11 @@ This will cover -
 * CAMERA
 * ADD / DEL / DELI / FOREACH / ALL / COUNT
 * FLR / SIN / COS / ATAN2 / RND
+* SGET
 
 ### Roadmap / To Add -
 
-* ? SGet & SSet
+* ? SSet
 * Pal / Palt -  if possible
 * Music - just play exported?
 * ? SFX - play exported?
@@ -87,6 +88,25 @@ This will cover -
 * Continuous runner
 
 ## Changelog
+
+### 0.4.4 — sget(x, y)
+
+One new function: per-pixel readback of the loaded spritesheet, needed by any port that does Pico-8-style pixel-perfect collision (e.g. the classic dw817 routine) instead of bounding-box checks.
+
+```js
+// dw817-style pixel collision, ported straight from Pico-8 Lua:
+if (sget(sh1 + j, sv1 + i) > 0 && sget(sh2 + x, sv2 + y) > 0) {
+    return true; // opaque pixels overlap
+}
+```
+
+`sget(x, y)` returns the Pico-8 colour index (0-15) of spritesheet pixel `(x, y)` in sheet-pixel coordinates (not sprite-number + cell — same coordinate space `sspr()`'s `sx, sy` use). Returns `0` for out-of-bounds coordinates, matching Pico-8.
+
+Implementation: the whole spritesheet is decoded once, right after it loads, via an offscreen canvas + a reverse palette lookup (RGB → Pico-8 index) — the same technique `pget()` already used against the on-screen canvas, now factored into a shared `colourIndexFromRGB()` helper. Every `sget()` call afterward is a plain typed-array read, not a canvas read, so it's cheap to call in a per-pixel double loop. Like `pget()`, extraction is skipped (with a one-time console warning) if the canvas is tainted — serve over `http(s)://` rather than `file://` to enable it. The debug panel's `sget` line reports extraction status (`ok WxH`, `pending`, or `disabled (tainted canvas)`).
+
+Test harness: `test-0.4.4.html` + `test-0.4.4-game.js` — move a player sprite (arrows) onto a static target sprite built from `tests/booty-sprites.png`; the HUD reports bounding-box overlap and true pixel collision separately so you can see them disagree near the sprite's transparent corners, exactly the case pixel-perfect collision exists to handle.
+
+Not yet done: `sset(x, y, c)` (the write-side companion) remains on the roadmap — nothing in the motivating port needed it yet.
 
 ### 0.4.3 — btnp + table helpers + Pico-8 math quirks
 
