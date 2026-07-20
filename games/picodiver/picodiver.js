@@ -1,21 +1,11 @@
 // picodiver.js
 // ============
-// Hand-port of picodiver2.p8 (Pico-8 Lua) to JavaScript, running on picoJS
+// Port of picodiver2.p8 (Pico-8 Lua) to JavaScript, running on picoJS
 // (bundled copy: games/picodiver/picoJS.js). Source:
-// /Users/nathan.taylor/Code/Personal/pico-code/PicoDiver/picodiver2.p8
+// https://github.com/nateProjects/PicoDiver/picodiver2.p8
 //
-// Deliberately NOT ported (per current scope):
+// Deliberately NOT ported:
 //   * sfx(n) — all 5 call sites skipped (score/hit/death cues). Silent.
-//   * wait(a) / flip() — dead code in the original (never called), omitted.
-//   * collider() — old AABB collision, explicitly marked "not used" in the
-//     original source, omitted.
-//
-// Preserved as-is (probable original bug): the de-dupe pass inside
-// gameupdate()'s collision loop calls `del(obj.thing)` in the Lua source —
-// note the dot, not a comma — which looks like a typo for `del(obj, thing)`.
-// Translated literally (see the comment at that call site) since picoJS's
-// del() no-ops gracefully on the resulting undefined rather than throwing,
-// matching what was presumably shipped and played.
 //
 // Table-index convention: `creat` and the per-instance `thing` arrays mirror
 // Lua's 1-based indexing on purpose — index 0 is left unused — so every
@@ -208,8 +198,7 @@ function gamedraw() {
         // NOTE: preserved from the original Lua — there's no matching
         // pal(12,12) reset anywhere (titleinit()/windraw()/deathdraw() reset
         // `hard` but never the palette), so once hard mode has been entered
-        // once, the dolphin stays grey even in a later easy-mode game. Ported
-        // literally rather than silently added a reset the original didn't have.
+        // once, the dolphin stays grey even in a later easy-mode game. 
     }
 }
 
