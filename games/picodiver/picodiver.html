@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>PicoDiver &mdash; ported to picoJS 0.4.7</title>
+    <style>
+        body {
+            background: #1D2B53;
+            color: #FFF1E8;
+            font-family: ui-monospace, Menlo, monospace;
+            margin: 16px;
+        }
+        h1 { font-size: 20px; margin: 0 0 8px; }
+        p  { font-size: 14px; margin: 0 0 12px; }
+        code { color: #FF77A8; }
+        canvas {
+            position: static !important;
+            left: auto !important;
+            top: auto !important;
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <h1>PicoDiver &mdash; picoJS port</h1>
+    <p>
+        Arrows move &middot; <kbd>X</kbd> easy mode from title &middot;
+        <kbd>Z</kbd> arcade (hard) mode.
+        Ported from <code>picodiver2.p8</code>; palette swaps (<code>pal</code>)
+        and sound (<code>sfx</code>) are not implemented yet — see
+        picodiver.js header for the full list of what's skipped.
+    </p>
+    <p>
+        Works straight from disk &mdash; just double-click this file, no
+        local server needed. (Earlier picoJS versions read pixel-perfect
+        collision back out of a canvas, which browsers block for
+        <code>file://</code> pages; this port now feeds <code>sget()</code>
+        pre-parsed pixel data directly via <code>picodiver-data.js</code>, so
+        that restriction doesn't apply here. If picoJS ever fails to build
+        that data, the title screen will show a warning rather than silently
+        breaking collision.)
+    </p>
+
+    <script type="text/javascript" src="picoJS-0.4.7.js"></script>
+    <script type="text/javascript" src="picodiver-data.js"></script>
+    <script type="text/javascript" src="picodiver.js"></script>
+</body>
+</html>

@@ -2,29 +2,44 @@
 // p8-to-js.js
 // ===========
 // Convert a Pico-8 cart (.p8) into a plain JavaScript module that picoJS can
-// load as map data + sprite flags. No dependencies; just node.
+// load as map data + sprite flags + sprite pixel data. No dependencies; just
+// node.
 //
 // Usage:
 //   node p8-to-js.js input.p8 [output.js]
 //
 // If output.js is omitted the JS is printed to stdout.
 //
-// Emits two top-level variables:
+// Emits three top-level variables:
 //   var mapData     = [[...128 entries...], ...32 rows...];
 //   var spriteFlags = [256 bytes];
+//   var spriteData  = [[...128 colour indices...], ...128 rows...];
 //
 // The file is written so it works in two environments:
-//   - As a <script> tag: picks up `var mapData` / `var spriteFlags` on window.
-//   - As a CommonJS require: `module.exports = { mapData, spriteFlags }`.
+//   - As a <script> tag: picks up `var mapData` / `var spriteFlags` /
+//     `var spriteData` as globals.
+//   - As a CommonJS require: `module.exports = { mapData, spriteFlags, spriteData }`.
 //
 // What it parses:
 //   - `__map__` section: 32 rows of up to 256 hex chars (128 tile bytes per
 //     row). Short / missing rows are padded with zeros.
 //   - `__gff__` section: up to 2 rows of 256 hex chars (128 flag bytes each,
 //     256 total). Short / missing rows are padded with zeros.
+//   - `__gfx__` section: 128 rows of up to 128 hex chars (1 nibble = 1 pixel,
+//     a Pico-8 colour index 0-15). Short / missing rows are padded with zeros.
 //
-// It does NOT touch __gfx__ / __sfx__ / __music__ / __lua__ — keep authoring
-// your spritesheet PNG yourself (same convention as the 0.4.x demos).
+// `spriteData` is for picoJS.run({ spriteData: ... }) — it feeds sget()
+// directly as plain data, so pixel-perfect collision works without ever
+// reading pixels back from a canvas (the getImageData() round-trip that
+// requires the page to be served over http(s):// rather than file://, since
+// browsers taint a canvas drawn from a file:// image). It is NOT an image —
+// you still need an actual spritesheet PNG for spr()/sspr() to draw with;
+// this tool doesn't produce one (see games/picodiver/gfx-to-png.py for a
+// standalone, pure-stdlib-Python __gfx__ -> PNG extractor, kept separate
+// since emitting binary image assets is a different concern from emitting a
+// JS data module).
+//
+// It does NOT touch __sfx__ / __music__ / __lua__.
 
 "use strict";
 
@@ -91,6 +106,25 @@ function parseFlags(body) {
     return flags;
 }
 
+// __gfx__: 128 rows × 128 hex chars per row. Each hex char is one pixel (a
+// Pico-8 colour index, 0-15) — unlike __map__/__gff__, one nibble per pixel,
+// not one byte. Returns a 128 × 128 nested array of ints.
+function parseGfx(body) {
+    const rows = (body || "").split(/\r?\n/).filter(l => l.length > 0);
+    const result = [];
+    for (let y = 0; y < 128; y++) {
+        const row = rows[y] || "";
+        const pixels = new Array(128);
+        for (let x = 0; x < 128; x++) {
+            const hex = row.substr(x, 1);
+            pixels[x] = hex.length === 1 ? parseInt(hex, 16) : 0;
+            if (isNaN(pixels[x])) pixels[x] = 0;
+        }
+        result.push(pixels);
+    }
+    return result;
+}
+
 // --- Map trim helpers ------------------------------------------------------
 
 // Find the bounding box of non-zero tiles. Returns { w, h } of the used area.
@@ -112,7 +146,7 @@ function usedBounds(map) {
 
 // --- Emitter ---------------------------------------------------------------
 
-function emit(mapData, spriteFlags, opts) {
+function emit(mapData, spriteFlags, spriteData, opts) {
     opts = opts || {};
     const bounds = usedBounds(mapData);
     const header =
@@ -120,10 +154,16 @@ function emit(mapData, spriteFlags, opts) {
         "// Source: " + (opts.source || "(stdin)") + "\n" +
         "// Map: 128x32 (used: " + bounds.w + "x" + bounds.h + ")\n" +
         "// Sprite flags: 256 bytes\n" +
+        "// Sprite data: 128x128 colour indices (0-15), from __gfx__\n" +
         "//\n" +
         "// Works as both a <script> include (sets globals) and a CommonJS\n" +
         "// module (module.exports). Pass to picoJS.run as:\n" +
-        "//   picoJS.run({ mapData: mapData, spriteFlags: spriteFlags, ... })\n\n";
+        "//   picoJS.run({ mapData: mapData, spriteFlags: spriteFlags,\n" +
+        "//                spriteData: spriteData, sprites: \"sprites.png\", ... })\n" +
+        "// spriteData feeds sget() directly — no canvas pixel read-back needed,\n" +
+        "// so pixel-perfect collision works even opened via file://. You still\n" +
+        "// need the actual spritesheet PNG (this tool doesn't emit one) for\n" +
+        "// spr()/sspr() to draw with.\n\n";
 
     // Render mapData as a nested array, one row per line, zeros compacted for
     // readability (still valid JS).
@@ -138,12 +178,17 @@ function emit(mapData, spriteFlags, opts) {
     }
     const flagBody = "var spriteFlags = [\n" + flagChunks.join(",\n") + "\n];\n\n";
 
+    // Render spriteData as a nested array, one row per line (same shape as
+    // mapData, just 128x128 instead of 128x32).
+    const gfxLines = spriteData.map(row => "    [" + row.join(",") + "]");
+    const gfxBody = "var spriteData = [\n" + gfxLines.join(",\n") + "\n];\n\n";
+
     const footer =
         "if (typeof module !== \"undefined\" && module.exports) {\n" +
-        "    module.exports = { mapData: mapData, spriteFlags: spriteFlags };\n" +
+        "    module.exports = { mapData: mapData, spriteFlags: spriteFlags, spriteData: spriteData };\n" +
         "}\n";
 
-    return header + mapBody + flagBody + footer;
+    return header + mapBody + flagBody + gfxBody + footer;
 }
 
 // --- CLI -------------------------------------------------------------------
@@ -163,8 +208,9 @@ function main() {
 
     const map   = parseMap(sections.map || "");
     const flags = parseFlags(sections.gff || "");
+    const gfx   = parseGfx(sections.gfx || "");
 
-    const js = emit(map, flags, { source: path.basename(inPath) });
+    const js = emit(map, flags, gfx, { source: path.basename(inPath) });
 
     if (outPath) {
         fs.writeFileSync(outPath, js);
@@ -180,4 +226,4 @@ if (require.main === module) {
     main();
 }
 
-module.exports = { splitSections, parseMap, parseFlags, emit, usedBounds };
+module.exports = { splitSections, parseMap, parseFlags, parseGfx, emit, usedBounds };

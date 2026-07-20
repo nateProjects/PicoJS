@@ -1,6 +1,6 @@
 # Pico-JS Javascript Game library
 
-**Current version: 0.4.4**
+**Current version: 0.4.7**
 
 A simple JavaScript game library, which makes it easy to create canvas-based games playable through a web browser.
 
@@ -49,12 +49,13 @@ This will cover -
 * CAMERA
 * ADD / DEL / DELI / FOREACH / ALL / COUNT
 * FLR / SIN / COS / ATAN2 / RND
-* SGET
+* SGET (+ SGETC, a picoJS-only canvas-decoded variant — not a Pico-8 function)
 
 ### Roadmap / To Add -
 
 * ? SSet
 * Pal / Palt -  if possible
+* Bitmap/pixel font for print() — canvas fillText() is always anti-aliased at small sizes, never pixel-identical to Pico-8's real font, regardless of opts.scale (0.4.5)
 * Music - just play exported?
 * ? SFX - play exported?
 * ? Clip
@@ -88,6 +89,63 @@ This will cover -
 * Continuous runner
 
 ## Changelog
+
+### 0.4.7 — sgetc(x, y): the canvas-decoded spritesheet read, always available
+
+0.4.6 made `sget()` prefer `opts.spriteData` when supplied, falling back to the canvas decode only when it wasn't — meaning once you supplied `spriteData`, there was no way left to ask "what does the actual loaded spritesheet PNG look like right now?" `sgetc(x, y)` is that other read, always available: the canvas-decoded copy (the `getImageData()` technique 0.4.4's `sget()` originally used), built independently every time regardless of whether `opts.spriteData` is also in use.
+
+```js
+sget(0, 0)   // Pico-8 colour index from opts.spriteData if supplied, else canvas decode — unchanged from 0.4.6
+sgetc(0, 0)  // always the canvas-decoded pixel, regardless of opts.spriteData
+```
+
+Why both: with `opts.spriteData` supplied, `sget()` is now guaranteed reliable (no canvas involved, works under `file://`), but it's reading the cart's *authored* data — not necessarily what's actually in the PNG you shipped. `sgetc()` lets you compare the two (catching art that's drifted out of sync with the source cart) or read back a spritesheet that's been redrawn at runtime, neither of which was possible once `spriteData` took over `sget()` entirely.
+
+`sgetc()` degrades exactly the way `sget()`'s canvas path always did: returns `0` for every pixel if the canvas turns out tainted, logging a one-time warning — reworded in this version to say precisely what's affected (`sgetc()` only, vs. both, depending on whether `opts.spriteData` is covering `sget()`). New `picoJS.sgetcReady` getter mirrors `picoJS.sgetReady` for this path; the debug panel gained an `sgetc` status line alongside the existing `sget` one.
+
+Internally, `buildSpriteData()` (the canvas-decode routine) now always runs once the spritesheet image loads, rather than being skipped when `spriteData` was already supplied — the decode is cheap (one `getImageData()` over a ~128×128 image, done once at load), so there's no real cost to keeping both reads available.
+
+### 0.4.6 — opts.spriteData: sget() without a canvas round-trip
+
+`tools/p8-to-js.js` now also parses `__gfx__` (128 rows × 128 hex chars, one nibble per pixel = a Pico-8 colour index) into a `spriteData` array, the same shape and convention as the existing `mapData` — and `picoJS.run()` accepts it directly:
+
+```js
+picoJS.run({
+    sprites:     "sprites.png",   // still needed — spr()/sspr() draw with it
+    mapData:     mapData,
+    spriteFlags: spriteFlags,
+    spriteData:  spriteData,      // new — feeds sget() directly
+    ...
+});
+```
+
+This closes the real gap behind 0.4.4/0.4.5's `sgetReady`/tainted-canvas warning rather than just working around it. `sget()`'s only previous data source was `buildSpriteData()`: load the spritesheet PNG into an `<img>`, draw it to an offscreen canvas, `getImageData()` it, reverse-map RGB back to a palette index. That `getImageData()` call is exactly what a browser blocks ("taints") when the image came from a bare `file://` page — so pixel-perfect collision only ever worked when the game was served over `http(s)://`. `spriteData` sidesteps the problem instead of accommodating it: since it's parsed straight from the cart's text into a plain array, no image or canvas is ever involved for that path, so `sget()` now works unconditionally — `file://` included.
+
+Wiring: `opts.spriteData` is normalised and installed before the spritesheet image even starts loading; `buildSpriteData()`'s canvas-decode path only runs as a fallback if `spriteData` wasn't supplied (existing 0.4.4/0.4.5 games — image only, no data — are unaffected either way). `sprPixelStatus` in the debug panel reads `ok (data) WxH` when sourced this way, vs. plain `ok WxH` for the canvas-decode path.
+
+Verified against `games/picodiver/`, which now passes its converter-generated `spriteData` — `picoJS.sgetReady` reads `true` and fish-pickup collision works correctly even when the page is opened directly via `file://`, with no server involved at all.
+
+Note `p8-to-js.js` still doesn't emit an actual spritesheet *image* — `spriteData` is pixel-value data for `sget()`, not a drawable asset. `spr()`/`sspr()` still need a real PNG; see `games/picodiver/gfx-to-png.py` for a standalone, pure-stdlib-Python `__gfx__` → PNG extractor (kept separate from this tool since emitting binary image assets is a different job from emitting a JS data module).
+
+### 0.4.5 — frame-rate throttling + render-scale, found while porting PicoDiver
+
+Two fixes that surfaced from actually porting a full cart (see `games/picodiver/`) rather than a synthetic test harness — both change default behaviour, so anything built against `picoJS-0.4.4.js` or earlier is unaffected (those files are untouched; only new work targeting `0.4.5` gets the new defaults).
+
+**Frame-rate throttling.** Every previous version ran `_update`/`_draw` once per `requestAnimationFrame` callback with no throttling — meaning game speed silently tracked the display's refresh rate. On a 60Hz monitor that happened to look plausible; on a 120Hz+ monitor (or a headless browser, which can free-run past 100fps with nothing to sync to) every frame-counted timer — animation, spawn timers, oxygen depletion, movement — fired 2-4x too fast. Vanilla Pico-8 runs `_update()`/`_draw()` at a fixed 30fps unless the cart defines `_update60()` instead; `opts.fps` now defaults to `30` to match, decoupling game logic from the display's actual refresh rate:
+
+```js
+picoJS.run({ ...,  fps: 60 });  // for a cart using _update60()
+```
+
+Internally, `requestAnimationFrame` still fires every display refresh (so input latency stays low), but a tick (`tickBtnp` + `_update` + `_draw`) only actually runs once `tickIntervalMs` has elapsed. If the browser falls far behind (backgrounded tab, GC pause), the schedule resyncs to *now* instead of firing a burst of catch-up ticks — matching real Pico-8's behaviour of dropping frames under load rather than fast-forwarding. The debug panel's `frame`/`fps` line now also shows the configured target (`fps 30 / target 30`).
+
+**`opts.scale`.** An optional render-resolution multiplier. The canvas's actual backing size becomes `logical size * scale`, with a matching `context.scale(scale, scale)` and `imageSmoothingEnabled = false`, so `print()`'s canvas-font text and every primitive draw at genuine higher resolution instead of being magnified after the fact by a CSS `transform: scale(...)`. CSS scaling just blows up already-anti-aliased low-res pixels — this renders the glyphs at the bigger size in the first place, which looks visibly crisper (though still not identical to Pico-8's bespoke bitmap font — see the "Known limitations" note below). Game code is unaffected either way — it keeps calling `spr(n, 64, 64)` etc. in the same logical 128×128 coordinate space regardless of `opts.scale`; `pget()` internally accounts for the scale factor when translating to device-pixel coordinates. `sget()` needs no such adjustment — it reads a separate, natural-resolution offscreen canvas built directly from the sprite image, independent of the on-screen canvas's scale.
+
+**`picoJS.sgetReady`.** A boolean getter — `true` once the spritesheet has been decoded into `sget()`'s pixel array, `false` if that hasn't happened yet or the canvas turned out tainted (the classic case: the page was opened via `file://` instead of being served over `http(s)://`). Without this, a tainted canvas makes `sget()` silently return `0` for every pixel forever, so any pixel-perfect collision check just never registers a hit — with no error, no warning, nothing pointing at the cause. Game code can check `picoJS.sgetReady` and put its own message on screen (PicoDiver's title screen now does exactly this) instead of leaving "collision doesn't work" as a silent mystery.
+
+**Known limitation, not fixed here:** `print()`'s text still isn't pixel-identical to Pico-8's actual font — it's the canvas's own small monospace font, which any browser anti-aliases at the glyph level regardless of resolution. `opts.scale` makes it look meaningfully crisper (higher-resolution anti-aliasing reads as sharper) but a truly identical look would need a hand-drawn bitmap font blitted like a sprite instead of `fillText`. Flagged as a real roadmap item, not attempted in this pass.
+
+Test harness: none added standalone for this version — verified directly against the real port in `games/picodiver/`, which exercises both the throttling (visually correct movement speed) and `opts.scale` (crisp HUD text) simultaneously.
 
 ### 0.4.4 — sget(x, y)
 
