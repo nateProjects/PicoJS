@@ -1,6 +1,30 @@
-// picoJS 0.4.7
+// picoJS 0.4.8
 // ============
 // New in this milestone:
+//   * print() now renders with an actual bitmap font by default — the real
+//     PICO-8 4x6 pixel font (sourced from althonos/embedded-picofont, itself
+//     derived from Lexaloffle's own font asset under CC-0), not the canvas's
+//     anti-aliased system font. Fixes the "text still looks blurry" gap left
+//     open by 0.4.5's opts.scale note: higher render resolution made the old
+//     canvas font less blurry, but it was never going to be pixel-identical
+//     to Pico-8, because browsers always anti-alias fillText() glyphs
+//     regardless of size. Drawing pre-authored pixel data instead sidesteps
+//     that entirely.
+//   * print(words, x, y, col, "system") — explicit opt-out back to the old
+//     canvas-font rendering, for text the bitmap font can't cover (anything
+//     outside printable ASCII 32-126 falls back to '?' in the bitmap font,
+//     matching the upstream reference implementation's own fallback).
+//   * picoJS.registerFont(name, { cellW, cellH, firstCode, glyphs }) — install
+//     an additional bitmap font (yours or someone else's), and
+//     picoJS.setFont(name) to make it the default for subsequent print()
+//     calls, or pass the name as print()'s 5th argument for a one-off. Glyph
+//     data is a flat hex string, cellH hex-nibble-groups per character
+//     (ceil(cellW / 4) hex chars per row, MSB-first), starting at firstCode
+//     — the same encoding the built-in "pico8" font uses internally.
+//     picoJS.fontInfo(name) returns { cellW, cellH } for games that want to
+//     do their own text-width math against a specific font.
+//
+// Carried forward (0.4.7):
 //   * sgetc(x, y) — a second, independent read of the spritesheet: always
 //     the canvas-decoded pixels (the 0.4.4/0.4.5 getImageData() technique),
 //     regardless of whether opts.spriteData was also supplied. Previously,
@@ -250,6 +274,89 @@
         return -1;
     }
 
+    // --- Bitmap fonts (0.4.8) ------------------------------------------------
+    //
+    // The real PICO-8 4x6 pixel font, printable ASCII 32-126 ('?' at 63 used
+    // as the fallback glyph for anything outside that range — matching the
+    // upstream reference implementation's own convention). Extracted from
+    // althonos/embedded-picofont's font.png (itself sourced from Lexaloffle's
+    // own PICO-8 font asset, released under CC-0), 4x6 cells, 1 hex nibble
+    // per row (cellW <= 4 bits). Glyphs are stored back to back, cellH hex
+    // chars each, in printable-ASCII order starting at firstCode.
+    var PICO8_FONT_HEX =
+        "000000444040aa0000aeaea0ec6e40a248a0cccae0480000488840422240a4e4a004e40000048000e000000040244480" +
+        "eaaae0c444e0e2e8e0e262e0aae220e8e2e088eae0e22220eaeae0eae2200404000404802484200e0e00842480e260404" +
+        "aa860eaeaa0eacae0688860caaae0e8c8e0e8c880688ae0aaeaa0e444e0e444c0aacaa08888e0eeaaa0caaaa06aaac0eae" +
+        "8804aac60eacaa068e2c0e44440aaaa60aaae40aaaee0aa4aa0aae2e0e248e0c888c084442062226" +
+        "04a00000000e04200000eaea00ccae00e88e00caac00ec8e00ec8800e8ae00aaea00e44e00e44c00acaa00888e00eeaa0" +
+        "0caaa006aac00eae8004ac600eaca00682c00e44400aaa600aae400aaee00a4aa00ae2e00e28e064c460444440c464c00" +
+        "2e800";
+
+    // name -> { cellW, cellH, firstCode, glyphs }. "pico8" is always
+    // registered; picoJS.registerFont() adds more, picoJS.setFont() switches
+    // print()'s default.
+    var fonts = {
+        pico8: { cellW: 4, cellH: 6, firstCode: 32, glyphs: PICO8_FONT_HEX }
+    };
+    var activeFontName = "pico8";
+
+    picoJS.registerFont = function (name, def) {
+        if (!def || typeof def.glyphs !== "string" || !def.cellW || !def.cellH) {
+            console.error("picoJS: registerFont(\"" + name + "\") — invalid font definition; need { cellW, cellH, firstCode, glyphs }.");
+            return;
+        }
+        fonts[name] = {
+            cellW: def.cellW | 0,
+            cellH: def.cellH | 0,
+            firstCode: (typeof def.firstCode === "number") ? def.firstCode | 0 : 32,
+            glyphs: def.glyphs
+        };
+    };
+
+    picoJS.setFont = function (name) {
+        if (fonts[name]) activeFontName = name;
+        else console.error("picoJS: setFont(\"" + name + "\") — no such registered font.");
+    };
+
+    picoJS.fontInfo = function (name) {
+        var f = fonts[(typeof name === "string") ? name : activeFontName];
+        return f ? { cellW: f.cellW, cellH: f.cellH } : null;
+    };
+
+    function drawBitmapFont(fontDef, words, x, y, col) {
+        screen.fillStyle = resolveColour(col !== undefined ? col : curcol);
+        var cellW = fontDef.cellW;
+        var cellH = fontDef.cellH;
+        var hexPerRow = Math.ceil(cellW / 4);
+        var glyphLen = cellH * hexPerRow;
+        var rowBitWidth = hexPerRow * 4;
+        var qmarkIdx = ("?".charCodeAt(0) - fontDef.firstCode) * glyphLen;
+        var px = (x | 0) - cam_x;
+        var py = (y | 0) - cam_y;
+        for (var i = 0; i < words.length; i++) {
+            var idx = (words.charCodeAt(i) - fontDef.firstCode) * glyphLen;
+            if (idx < 0 || idx + glyphLen > fontDef.glyphs.length) idx = qmarkIdx;
+            if (idx >= 0 && idx + glyphLen <= fontDef.glyphs.length) {
+                for (var row = 0; row < cellH; row++) {
+                    var rowHex = fontDef.glyphs.substr(idx + row * hexPerRow, hexPerRow);
+                    var bits = parseInt(rowHex, 16) | 0;
+                    for (var bcol = 0; bcol < cellW; bcol++) {
+                        if ((bits >> (rowBitWidth - 1 - bcol)) & 1) {
+                            screen.fillRect(px + bcol, py + row, 1, 1);
+                        }
+                    }
+                }
+            }
+            px += cellW;
+        }
+    }
+
+    function drawSystemFont(words, x, y, col) {
+        screen.font = "6px monospace";
+        screen.fillStyle = resolveColour(col !== undefined ? col : curcol);
+        screen.fillText(words, (x | 0) - cam_x, (y | 0) - cam_y);
+    }
+
     // --- Screen state -------------------------------------------------------
 
     picoJS.cls = function (col) {
@@ -273,10 +380,24 @@
         cam_y = (y | 0) || 0;
     };
 
-    picoJS.print = function (words, x, y, col) {
-        screen.font = "6px monospace";
-        screen.fillStyle = resolveColour(col !== undefined ? col : curcol);
-        screen.fillText(words, (x | 0) - cam_x, (y | 0) - cam_y);
+    // print(words, x, y, col, font) — font is a picoJS-only 5th argument:
+    //   omitted        -> the active bitmap font (picoJS.setFont(), default "pico8")
+    //   "system"       -> the old canvas-font fillText() rendering
+    //   a font name    -> that registered bitmap font for this call only
+    picoJS.print = function (words, x, y, col, font) {
+        words = String(words);
+        if (font === "system") {
+            drawSystemFont(words, x, y, col);
+            return;
+        }
+        var fontName = (typeof font === "string") ? font : activeFontName;
+        var fontDef = fonts[fontName];
+        if (!fontDef) {
+            console.error("picoJS: print() — no such registered font \"" + fontName + "\"; falling back to \"system\".");
+            drawSystemFont(words, x, y, col);
+            return;
+        }
+        drawBitmapFont(fontDef, words, x, y, col);
     };
 
     // --- Drawing primitives -------------------------------------------------
@@ -826,6 +947,7 @@
         curcol = 7;
         cam_x = 0;
         cam_y = 0;
+        activeFontName = "pico8"; // registerFont()-added fonts persist; only the active choice resets
 
         // Reset map / flag state for repeat run() calls during development.
         mapDataArr = null; mapWidthN = 0; mapHeightN = 0;
@@ -1105,11 +1227,13 @@
             // Sprite pixel data (0.4.4)
             "sget",
             // Canvas-decoded spritesheet read (0.4.7)
-            "sgetc"
+            "sgetc",
+            // Bitmap fonts (0.4.8)
+            "registerFont", "setFont", "fontInfo"
         ].forEach(function (n) { target[n] = picoJS[n]; });
     };
 
-    picoJS.version = "0.4.7";
+    picoJS.version = "0.4.8";
 
     global.picoJS = picoJS;
 }(typeof window !== "undefined" ? window : this));

@@ -1,6 +1,6 @@
 # Pico-JS Javascript Game library
 
-**Current version: 0.4.7**
+**Current version: 0.4.8**
 
 A simple JavaScript game library, which makes it easy to create canvas-based games playable through a web browser.
 
@@ -40,7 +40,7 @@ This will cover -
 * MAP (data-array, with image-backed fallback)
 * MGET / MSET
 * FGET / FSET
-* PRINT
+* PRINT (real PICO-8 bitmap font by default; picoJS-only "system"/custom-font options)
 * RECT / RECTFILL
 * LINE
 * CIRC / CIRCFILL
@@ -55,7 +55,6 @@ This will cover -
 
 * ? SSet
 * Pal / Palt -  if possible
-* Bitmap/pixel font for print() — canvas fillText() is always anti-aliased at small sizes, never pixel-identical to Pico-8's real font, regardless of opts.scale (0.4.5)
 * Music - just play exported?
 * ? SFX - play exported?
 * ? Clip
@@ -89,6 +88,26 @@ This will cover -
 * Continuous runner
 
 ## Changelog
+
+### 0.4.8 — real PICO-8 bitmap font for print(), plus custom fonts
+
+`print()` renders with an actual bitmap font by default now — the real PICO-8 4x6 pixel font — instead of the canvas's own anti-aliased system font. This closes the gap 0.4.5 explicitly left open: rendering at a higher resolution (`opts.scale`) made the old canvas-font text less blurry, but it was never going to be pixel-identical to Pico-8, because browsers always anti-alias `fillText()` glyphs at the rasterizer level regardless of size. Drawing pre-authored pixel data instead of asking the browser to rasterize a font sidesteps the problem entirely — verified side by side in `test-0.4.8.html`, where the same string in the bitmap font is visibly crisp block pixels next to the old system font's visibly softer edges.
+
+Font data source: [althonos/embedded-picofont](https://github.com/althonos/embedded-picofont)'s `font.png`, itself derived from Lexaloffle's own PICO-8 font asset released under CC-0. Extracted the 4x6 glyph bitmaps for printable ASCII 32-126 directly from the pixel data (cross-checked by hand against known glyph shapes) and baked them into the library as a compact hex string — no runtime dependency, no image asset needed for the font itself.
+
+```js
+print("Hello, Pico-8!", 10, 10, 7)             // default — real PICO-8 pixel font
+print("Hello, Pico-8!", 10, 10, 7, "system")   // picoJS-only: opt back into the old canvas font
+```
+
+Two picoJS-only extensions beyond Pico-8's own `print()` signature, both purely additive (a 5th argument, so nothing already calling `print()` with 4 args changes behaviour):
+
+* `print(words, x, y, col, "system")` — for anything the bitmap font can't cover. Characters outside printable ASCII 32-126 fall back to `?` in the bitmap font (matching the reference implementation's own convention), so `"system"` is the escape hatch for wider character support.
+* `picoJS.registerFont(name, { cellW, cellH, firstCode, glyphs })` + `picoJS.setFont(name)` — install and switch to additional bitmap fonts, yours or someone else's. `glyphs` is a flat hex string, `cellH` rows per character starting at `firstCode`, each row `ceil(cellW / 4)` hex characters (MSB-first) — the same encoding the built-in `"pico8"` font uses internally, so it isn't a special case. `setFont()` changes the default for subsequent `print()` calls; passing a font name as `print()`'s 5th argument overrides it for one call without disturbing the default (`test-0.4.8.html` demonstrates both at once — cycling the default with a button while three explicit-override lines stay fixed). `picoJS.fontInfo(name)` returns `{ cellW, cellH }` for games doing their own text-width math. A custom font only needs glyphs for the characters it'll actually be asked to print — anything else in its registered range renders blank rather than garbage.
+
+Test harness: `test-0.4.8.html` + `test-0.4.8-game.js` — no spritesheet needed, pure text/primitives. Registers an 8x8 custom `"big"` font (proving the mechanism isn't hardcoded to the built-in font's 4x6 cell size) covering just the handful of characters needed to spell "BIG FONT", and a button cycles the active default through `pico8` / `system` / `big` while three fixed-font lines demonstrate the per-call override staying independent of whatever the default is doing.
+
+Not yet covered: PICO-8's extended/"wide" glyph range (128-255, used for icons and CJK-style wide characters) — only printable ASCII 32-126 is in the built-in font for now.
 
 ### 0.4.7 — sgetc(x, y): the canvas-decoded spritesheet read, always available
 
@@ -140,6 +159,8 @@ picoJS.run({ ...,  fps: 60 });  // for a cart using _update60()
 Internally, `requestAnimationFrame` still fires every display refresh (so input latency stays low), but a tick (`tickBtnp` + `_update` + `_draw`) only actually runs once `tickIntervalMs` has elapsed. If the browser falls far behind (backgrounded tab, GC pause), the schedule resyncs to *now* instead of firing a burst of catch-up ticks — matching real Pico-8's behaviour of dropping frames under load rather than fast-forwarding. The debug panel's `frame`/`fps` line now also shows the configured target (`fps 30 / target 30`).
 
 **`opts.scale`.** An optional render-resolution multiplier. The canvas's actual backing size becomes `logical size * scale`, with a matching `context.scale(scale, scale)` and `imageSmoothingEnabled = false`, so `print()`'s canvas-font text and every primitive draw at genuine higher resolution instead of being magnified after the fact by a CSS `transform: scale(...)`. CSS scaling just blows up already-anti-aliased low-res pixels — this renders the glyphs at the bigger size in the first place, which looks visibly crisper (though still not identical to Pico-8's bespoke bitmap font — see the "Known limitations" note below). Game code is unaffected either way — it keeps calling `spr(n, 64, 64)` etc. in the same logical 128×128 coordinate space regardless of `opts.scale`; `pget()` internally accounts for the scale factor when translating to device-pixel coordinates. `sget()` needs no such adjustment — it reads a separate, natural-resolution offscreen canvas built directly from the sprite image, independent of the on-screen canvas's scale.
+
+Use `opts.scale` for display upscaling, not a CSS `transform: scale(...)` on the canvas element — `image-rendering: pixelated` reliably keeps a *layout*-size change (width/height, or no scaling at all) crisp, but its interaction with a CSS *transform* is inconsistent enough across browsers that a transform-scaled canvas can still come out blurry even with `pixelated` set. Found the hard way: `test-0.4.8.html` originally used a CSS transform to display its font demo at 4x and looked blurry despite the bitmap font underneath being pixel-correct (confirmed via `getImageData` — the actual canvas contents had exactly two flat colour values, zero blended ones); switching that harness to `opts.scale: 4` and dropping the CSS transform fixed it. `games/picodiver/` was already using `opts.scale` since 0.4.5 and never had this problem.
 
 **`picoJS.sgetReady`.** A boolean getter — `true` once the spritesheet has been decoded into `sget()`'s pixel array, `false` if that hasn't happened yet or the canvas turned out tainted (the classic case: the page was opened via `file://` instead of being served over `http(s)://`). Without this, a tainted canvas makes `sget()` silently return `0` for every pixel forever, so any pixel-perfect collision check just never registers a hit — with no error, no warning, nothing pointing at the cause. Game code can check `picoJS.sgetReady` and put its own message on screen (PicoDiver's title screen now does exactly this) instead of leaving "collision doesn't work" as a silent mystery.
 
