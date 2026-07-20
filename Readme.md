@@ -1,6 +1,6 @@
 # Pico-JS Javascript Game library
 
-**Current version: 0.4.11**
+**Current version: 0.4.16**
 
 A simple JavaScript game library, which makes it easy to create canvas-based games playable through a web browser.
 
@@ -31,8 +31,7 @@ This will cover -
 * _draw
 * _update
 * _init
-* BTN (0-5: arrows + O/X)
-* BTNP (with Pico-8 auto-repeat)
+* BTN / BTNP (i, [p]) — up to 4 local players; p omitted defaults to player 0
 * CLS (with optional colour)
 * COLOUR / COLOR
 * SSPR
@@ -40,11 +39,12 @@ This will cover -
 * MAP (data-array, with image-backed fallback)
 * MGET / MSET
 * FGET / FSET
-* PRINT (real PICO-8 bitmap font by default; picoJS-only "system"/custom-font options)
-* RECT / RECTFILL
+* PRINT (real PICO-8 bitmap font by default; picoJS-only "system"/custom-font options; cursor-aware, multi-line via \n)
+* CURSOR
+* RECT / RECTFILL (dither pattern via FILLP)
 * LINE
-* CIRC / CIRCFILL
-* OVAL / OVALFILL
+* CIRC / CIRCFILL (dither pattern via FILLP)
+* OVAL / OVALFILL (dither pattern via FILLP)
 * PSET / PGET
 * CAMERA
 * ADD / DEL / DELI / FOREACH / ALL / COUNT
@@ -55,17 +55,22 @@ This will cover -
 * TOSTR / TONUM (no-flags path exact; tostr's hex/no-decimal flags are an approximation)
 * PRINTH (console only — no file-output equivalent in a browser)
 * TIME / T
-* SGET (+ SGETC, a picoJS-only canvas-decoded variant — not a Pico-8 function)
+* SGET / SSET (+ SGETC, a picoJS-only canvas-decoded variant — not a Pico-8 function)
 * PAL / PALT (draw palette only — see roadmap for the screen palette, p=1)
+* SRAND (reverse-engineered algorithm, verified against an independent implementation, not against real hardware)
+* FILLP
+* CHR / ORD
+* CARTDATA / DGET / DSET (localStorage-backed)
 
 ### Roadmap / To Add -
 
-* ? SSet
-* Pal(c0, c1, 1) — the "screen" palette (whole-framebuffer remap at flip time); only the default draw palette (p=0) is implemented
+* Pal(c0, c1, 1) — the "screen" palette (whole-framebuffer remap at flip time); a materially bigger feature than the draw palette (needs a whole-canvas read-back + a lossy RGB->index reverse lookup, or a parallel logical framebuffer threaded through every primitive) — deferred past 1.0
+* Tline() — pseudo-3D/mode7-style textured lines — deferred past 1.0
 * Music - just play exported?
 * ? SFX - play exported?
 * ? Clip
 * ? MenuItem
+* Players 2-3's keyboard defaults (IJKL/numpad) are a picoJS-only convenience — real Pico-8 has no keyboard default beyond player 1, gamepads only
 
 ### Other Ideas -
 
@@ -95,6 +100,82 @@ This will cover -
 * Continuous runner
 
 ## Changelog
+
+### 0.4.16 — sset, chr/ord, and real persistence via cartdata/dget/dset
+
+Three more items off the "what's left before 1.0" list.
+
+**`sset(x, y, [col])`** completes the `sget`/`sset` pair — `sget` has existed since 0.4.4 but had no write side until now. Writes straight into the same `spriteDataArr` that `sget()` and `spr()`/`map()`'s `pal()`/`palt()` composite read, marking that composite dirty so an edit shows up on the next draw. Deliberately does *not* touch `sgetc()`'s separate canvas-decoded data — `sgetc()` exists specifically to show what the loaded image's actual pixels are, so an in-memory-only edit correctly stays invisible to it. Verified directly: `sset(1,0,3)` changes exactly that pixel's `sget()` reading, leaves neighbouring pixels untouched, and `sgetc()` at the same coordinate stays unaffected.
+
+**`chr(num, ...)` / `ord(str, [index])`** — trivial character/code conversion, `chr()` variadic (concatenates each argument, matching newer Pico-8 versions).
+
+**`cartdata(id)` + `dget(index)` / `dset(index, value)`** — 64 slots of persistent 32-bit signed integers, `localStorage`-backed and namespaced by `id`, the same per-cart-save-file convention Pico-8 itself uses. This is the highest-value item of the three — it's what actually makes a ported game *shippable* (a persistent high score survives a reload, rather than resetting every time). `dget()`/`dset()` always work against an in-memory copy regardless of whether `cartdata()` was ever called — never a silent no-op if a game forgets to call it — but nothing persists across a reload until `cartdata(id)` has actually run and confirmed `localStorage` is genuinely usable, reflected in the new `picoJS.cartdataReady`. Matching real Pico-8, only one `cartdata()` call is honoured per run; a second call is rejected with a warning rather than silently switching save slots underneath already-loaded data.
+
+Verified end-to-end, including the part that actually matters: called `cartdata()`, wrote a value via `dset()`, reloaded the page (a real navigation, not just resetting in-memory state), called `cartdata()` again, and confirmed the value came back from `localStorage` rather than resetting to 0.
+
+Explicitly deferred (see roadmap): `pal(c0, c1, 1)` (the screen palette) and `tline()` — both bigger, more speculative features kept out of the 1.0 push in favor of these three higher-value, lower-risk additions. `clip()` remains an open call — genuinely useful for UI polish (wipes, minimaps, health-bar masking) but secondary to gameplay logic, so it's still on the table for 1.0 but not committed yet.
+
+### 0.4.15 — fillp(pattern): dither fill patterns
+
+The last of a four-stage "medium effort" batch (0.4.12-0.4.15) — see those entries below for `srand`, multiplayer `btn`/`btnp`, and `cursor()`/`print()`.
+
+```js
+fillp(0b1010010110100101)          // a 4x4 dither pattern
+rectfill(0, 0, 20, 20, 0x1c)       // low nibble (0xc) = "off" colour, high nibble (0x1) = "on" colour
+rectfill(0, 0, 20, 20, 8)          // colour <= 15: "on" pixels are just transparent (a simple stipple)
+fillp(pattern + 0.5)               // Pico-8's own 0x0.8 flag: "on" pixels always transparent, secondary colour or not
+fillp()                            // back to a solid fill
+```
+
+Applies to `rectfill()`/`circfill()`/`ovalfill()` only — never the outline forms (`rect`/`circ`/`oval`), since dithering is inherently a fill concept. Bit layout matches the PICO-8 manual precisely: bit 15 is the tile's top-left pixel, bit 0 is bottom-right, raster order — verified pixel-exactly (not just visually) with a single-bit pattern (`0x8000`) and checking that exactly the expected pixels across multiple repeated 4x4 tiles read as background rather than fill colour.
+
+Canvas has no built-in per-pixel alternating-colour fill, so a non-zero pattern switches the three fill routines over to a per-pixel loop checking each pixel's `(x mod 4, y mod 4)` tile cell instead of a single `fillRect()`; `fillPattern === 0` (the default) keeps the original single-`fillRect` fast path untouched, so existing code not using `fillp()` pays no cost for this existing.
+
+Verified directly: the solid-fill case is pixel-identical to before (regression check), the single-bit pattern correctly tiles every 4 pixels in both directions, the two-colour encoding (`0x1c` → dark-blue/blue) resolves both nibbles correctly, the transparency flag correctly overrides a given secondary colour, and `circfill()`/`ovalfill()` both show the same dithering behaviour as `rectfill()` (checked via colour-population counts inside their bounding boxes, before/after enabling the pattern).
+
+### 0.4.14 — cursor(x, y, [col]) + print() argument-count overloading
+
+`print()` previously only branched on `undefined`, which doesn't match how real Pico-8 actually overloads it — `print(str, col)` (2 arguments) is colour-only, still cursor-positioned, distinct from `print(str, x, y)` (3 arguments, position with the current colour). Implemented by checking `arguments.length` directly rather than inspecting which arguments are `undefined`:
+
+```js
+cursor(10, 20)     // set the position (and, optionally, colour) print() will use next
+print("score:")    // cursor-positioned — draws at (10, 20)
+print(score)       // draws right below it — every print() call advances the cursor
+print("a\nb\nc", 40, 40, 7)   // embedded \n splits into 3 lines, each one line-height apart
+```
+
+Every `print()` call — cursor-positioned or fully explicit — now advances the cursor to just below whatever it drew, matching real Pico-8's console-like "keeps writing where it left off" behaviour, so an explicitly-positioned `print()` followed by a bare `print(str)` continues directly underneath. Embedded `"\n"` breaks a single `print()` call into multiple lines, each advancing by the active font's line height (`fontDef.cellH`, or a flat 6 for the `"system"` fallback font) and resetting back to that call's own starting x — not the cursor's x, so a `\n`-containing string passed to an explicitly-positioned call behaves correctly too.
+
+This only changes behaviour for 1-2 argument `print()` calls, which previously just drew at `(undefined, undefined)` (effectively broken/unused) — existing `print(str, x, y, [col], [font])` calls (3+ arguments) are unaffected. Verified pixel-exactly in a real browser: cursor advancement between successive bare `print()` calls, the 2-arg colour form landing at the cursor position, three-line `\n` splitting at the correct y-offsets, and an explicitly-positioned call correctly advancing the cursor for a following bare call.
+
+### 0.4.13 — btn(i, p) / btnp(i, p): up to 4 local players
+
+```js
+btn(1)      // player 0's right button (unchanged — p defaults to 0)
+btn(1, 1)   // player 1's right button
+btn()       // bitfield of every button player 0 is holding (now correctly implemented — see below)
+```
+
+Players 0-1 use real Pico-8's own documented keyboard defaults (P0: arrow keys, Z/C/N for O, X/V/M for X; P1: S/F/E/D for direction, shift for O, tab for X). Players 2-3 have no real Pico-8 keyboard default at all — real Pico-8 requires an actual gamepad for players beyond index 1 — so picoJS invents a reasonable convenience default for them instead (P2: IJKL + comma/period; P3: a numpad cluster), clearly flagged as picoJS-only. Every player's bindings are remappable via the new `picoJS.setPlayerKeys(p, { left, right, up, down, o, x })`, which accepts either a single key or an array of aliases per action and only touches the actions you actually pass.
+
+`btn()`/`btnp()` called with no button index now correctly return a bitfield of every currently-held button for that player, matching real Pico-8's own no-args form — previously this just fell through to `false`, a pre-existing gap fixed in passing while this code was already being restructured for multiplayer. Existing single-argument `btn(i)`/`btnp(i)` calls are completely unaffected, since `p` simply defaults to 0 — the same player the old single-player implementation always drove.
+
+Verified directly in a browser: simultaneous, independent key state across all 4 players (pressing player 0 and player 2's controls at once and confirming no cross-talk), `btnp()`'s just-pressed edge firing independently per player, the bitfield form's bit values, and `setPlayerKeys()` correctly replacing one binding while leaving a player's other bindings untouched.
+
+### 0.4.12 — srand(seed): a real, seedable, replayable RNG
+
+`rnd()` could never be made deterministic before this — `Math.random()` can't be seeded. `srand(seed)` switches `rnd()` over to a from-scratch seeded generator instead:
+
+```js
+srand(12345)   // rnd() is now deterministic and replayable from here
+print(rnd(10)) // same seed -> same sequence, every time
+```
+
+Real Pico-8's actual RNG algorithm isn't officially documented by Lexaloffle. This implements a community-reverse-engineered version — two 32-bit fixed-point state words (`hi`/`lo`), rotated and added on every call, reduced mod `n` — sourced from a PICO-8-in-PICO-8 reimplementation posted on the Lexaloffle BBS (found by reading the raw forum HTML directly rather than trusting an AI-paraphrased summary of it, after an initial paraphrase turned out to have gotten a constant wrong). All arithmetic runs on raw ×65536 fixed-point 32-bit integers (via `|0`), since the algorithm's bitwise steps only produce the right answer operating on Pico-8's actual fixed-point representation, not on plain JS floats — including a Lua-style modulo helper, since Lua's `%` (sign follows the divisor) disagrees with JS's native `%` (sign follows the dividend) whenever the dividend is negative, which happens constantly in this algorithm.
+
+Cross-checked against an independent Python port of the same formula — identical output sequences for every seed/`n` combination tried. **Not** verified against a real running Pico-8, since none was available to check against here — so this should be read as "closely replicates the documented reverse-engineered algorithm," not "guaranteed bit-identical to the real thing."
+
+`rnd()` only switches to the seeded generator once `srand()` has actually been called — until then it's untouched (`Math.random()`, exactly as before), so no existing game's randomness changes underneath it just by upgrading.
 
 ### 0.4.11 — sub / tostr / tonum / printh / time+t
 

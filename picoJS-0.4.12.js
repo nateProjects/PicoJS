@@ -1,6 +1,20 @@
-// picoJS 0.4.11
+// picoJS 0.4.12
 // =============
 // New in this milestone:
+//   * srand(seed) — makes rnd() deterministic/replayable. Real Pico-8's RNG
+//     algorithm isn't officially documented; this implements a
+//     community-reverse-engineered version (two 32-bit fixed-point state
+//     words, rotate+add each call, reduced mod n) sourced from a PICO-8-in-
+//     PICO-8 reimplementation posted on the Lexaloffle BBS. Verified against
+//     an independent Python port of the same formula for several seed/n
+//     combinations — not verified against a real running PICO-8, since none
+//     was available here, so treat it as "closely replicates the documented
+//     reverse-engineered algorithm," not "guaranteed bit-identical to the
+//     real thing." rnd() only switches to this generator once srand() has
+//     been called at least once — otherwise it's untouched (still
+//     Math.random()), so no existing game's randomness changes underneath it.
+//
+// Carried forward (0.4.11):
 //   * sub(str, i, [j]) — Lua-style substring, 1-based/inclusive, clamped
 //     rather than erroring on out-of-range indices. No negative-from-end
 //     indexing (matches Pico-8's own sub(), not Lua's string.sub).
@@ -1106,16 +1120,98 @@
         return (t + 1) % 1;
     };
 
+    // --- Seeded RNG (0.4.12) -------------------------------------------------
+    //
+    // Reverse-engineered from a community-posted PICO-8-in-PICO-8
+    // reimplementation (not officially documented by Lexaloffle) — see the
+    // changelog for the source. Two 32-bit fixed-point state words (hi/lo);
+    // rnd() rotates+adds them each call and reduces the result mod n. All
+    // arithmetic is done on raw ×65536 fixed-point 32-bit integers (via |0)
+    // to match Pico-8's own fixed-point representation bit-for-bit, since
+    // the algorithm's bitwise steps only produce the right answer operating
+    // on that raw form, not on plain JS floats. Verified against an
+    // independent Python port of the same formula — identical sequences for
+    // every seed/n combination checked.
+    //
+    // rnd() only switches over to this generator once srand() has been
+    // called at least once; until then it keeps using Math.random(), so
+    // nothing about existing games' randomness changes unless they opt in.
+    var rngHi = 0, rngLo = 0;
+    var rngSeeded = false;
+
+    var RNG_DEADBEEF = 0xdeadbeef | 0; // srand(0)'s lo
+    var RNG_BEAD29BA = 0xbead29ba | 0; // XOR constant for srand(seed != 0)'s hi
+    var RNG_INIT_HI  = 0x60009755 | 0; // srand(0)'s hi
+    var RNG_MASK7FFF = 0x7fffffff | 0; // sign-bit mask
+    var RNG_SIGNBIT  = 0x80000000 | 0; // -2147483648
+
+    function rngToRaw(x) { return Math.round(x * 65536) | 0; }
+    function rngRotl16(x) { return ((x << 16) | (x >>> 16)) | 0; }
+
+    // Lua-style modulo (result takes the sign of the divisor), not JS's
+    // native % (which takes the sign of the dividend) — the two disagree
+    // exactly when the dividend is negative, which happens constantly here.
+    function rngLuaMod(a, b) {
+        if (b === 0) return 0;
+        var r = a % b;
+        if (r !== 0 && ((r < 0) !== (b < 0))) r += b;
+        return r;
+    }
+
+    // Advances the generator and returns a value in [0, nRaw) — nRaw is n
+    // already converted to its raw ×65536 form. Used for both real output
+    // and the 32-call warm-up srand() does after reseeding.
+    function rngAdvance(nRaw) {
+        rngHi = (rngRotl16(rngHi) + rngLo) | 0;
+        rngLo = (rngLo + rngHi) | 0;
+        if (nRaw === 0) return 0;
+        var term1 = (rngHi < 0) ? rngLuaMod((RNG_SIGNBIT - nRaw) | 0, nRaw) : 0;
+        var term2 = rngLuaMod(rngHi & RNG_MASK7FFF, nRaw);
+        return rngLuaMod((term1 + term2) | 0, nRaw);
+    }
+
+    // srand(seed) — seeds the generator so rnd() becomes deterministic and
+    // replayable from here on. seed omitted/0 uses Pico-8's own fixed
+    // "unseeded" state rather than 0 XOR'd with the constant, matching the
+    // reference algorithm's own special case.
+    picoJS.srand = function (seed) {
+        seed = (seed === undefined || seed === null) ? 0 : seed;
+        var seedRaw = rngToRaw(seed);
+        if (seedRaw === 0) {
+            rngHi = RNG_INIT_HI;
+            rngLo = RNG_DEADBEEF;
+        } else {
+            rngHi = (seedRaw ^ RNG_BEAD29BA) | 0;
+            rngLo = seedRaw;
+        }
+        rngSeeded = true;
+        for (var i = 0; i < 32; i++) rngAdvance(65536); // warm-up, n=1 each call, discarded
+    };
+
     // rnd():       [0, 1)
     // rnd(n):      [0, n) for number
-    // rnd([a,b,]): random element of array-like
+    // rnd([a,b,]): random element of array-like (picoJS-only extension, not
+    //              real Pico-8 — rnd() only ever takes a number there)
+    //
+    // Uses the seeded generator once srand() has been called; Math.random()
+    // otherwise (pre-0.4.12 behaviour, unchanged for anyone not opting in).
     picoJS.rnd = function (x) {
-        if (x === undefined || x === null) return Math.random();
-        if (typeof x === "number") return Math.random() * x;
-        if (x && typeof x.length === "number" && x.length > 0) {
-            return x[Math.floor(Math.random() * x.length)];
+        if (!rngSeeded) {
+            if (x === undefined || x === null) return Math.random();
+            if (typeof x === "number") return Math.random() * x;
+            if (x && typeof x.length === "number" && x.length > 0) {
+                return x[Math.floor(Math.random() * x.length)];
+            }
+            return Math.random();
         }
-        return Math.random();
+        if (x && typeof x === "object" && typeof x.length === "number" && x.length > 0) {
+            var idxRaw = rngAdvance(rngToRaw(x.length));
+            var idx = Math.floor(idxRaw / 65536);
+            if (idx >= x.length) idx = x.length - 1;
+            return x[idx];
+        }
+        var n = (x === undefined || x === null) ? 1 : x;
+        return rngAdvance(rngToRaw(n)) / 65536;
     };
 
     picoJS.ceil = Math.ceil;
@@ -1234,6 +1330,7 @@
         cam_y = 0;
         activeFontName = "pico8"; // registerFont()-added fonts persist; only the active choice resets
         startTimeMs = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        rngHi = 0; rngLo = 0; rngSeeded = false; // repeat run() calls start unseeded again
 
         // Reset map / flag state for repeat run() calls during development.
         mapDataArr = null; mapWidthN = 0; mapHeightN = 0;
@@ -1527,11 +1624,13 @@
             "ceil", "abs", "min", "max", "mid", "sgn",
             "band", "bor", "bxor", "bnot", "shl", "shr", "lshr",
             // Strings / misc (0.4.11)
-            "sub", "tostr", "tonum", "printh", "time", "t"
+            "sub", "tostr", "tonum", "printh", "time", "t",
+            // Seeded RNG (0.4.12)
+            "srand"
         ].forEach(function (n) { target[n] = picoJS[n]; });
     };
 
-    picoJS.version = "0.4.11";
+    picoJS.version = "0.4.12";
 
     global.picoJS = picoJS;
 }(typeof window !== "undefined" ? window : this));
