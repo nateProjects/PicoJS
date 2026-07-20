@@ -28,24 +28,10 @@
     <h1>PicoDiver &mdash; picoJS port</h1>
     <p>
         Arrows move &middot; <kbd>X</kbd> easy mode from title &middot;
-        <kbd>Z</kbd> arcade (hard) mode.
+        <kbd>Z</kbd> arcade (hard) mode. 
         Ported from <code>picodiver2.p8</code>; sound (<code>sfx</code>) isn't
-        implemented yet — see picodiver.js header for the full list of what's
-        skipped. Palette swaps (<code>pal</code>) are now live: watch the
-        title-screen ship recolour, and the dolphin turn grey once you've
-        played arcade mode.
+        implemented yet.
     </p>
-    <p>
-        Works straight from disk &mdash; just double-click this file, no
-        local server needed. (Earlier picoJS versions read pixel-perfect
-        collision back out of a canvas, which browsers block for
-        <code>file://</code> pages; this port now feeds <code>sget()</code>
-        pre-parsed pixel data directly via <code>picodiver-data.js</code>, so
-        that restriction doesn't apply here. If picoJS ever fails to build
-        that data, the title screen will show a warning rather than silently
-        breaking collision.)
-    </p>
-
     <script type="text/javascript" src="picoJS.js"></script>
     <script type="text/javascript" src="picodiver-data.js"></script>
     <script type="text/javascript" src="picodiver.js"></script>
