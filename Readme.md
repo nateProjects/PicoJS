@@ -1,6 +1,6 @@
 # Pico-JS Javascript Game library
 
-**Current version: 0.4.8**
+**Current version: 0.4.9**
 
 A simple JavaScript game library, which makes it easy to create canvas-based games playable through a web browser.
 
@@ -50,11 +50,12 @@ This will cover -
 * ADD / DEL / DELI / FOREACH / ALL / COUNT
 * FLR / SIN / COS / ATAN2 / RND
 * SGET (+ SGETC, a picoJS-only canvas-decoded variant — not a Pico-8 function)
+* PAL / PALT (draw palette only — see roadmap for the screen palette, p=1)
 
 ### Roadmap / To Add -
 
 * ? SSet
-* Pal / Palt -  if possible
+* Pal(c0, c1, 1) — the "screen" palette (whole-framebuffer remap at flip time); only the default draw palette (p=0) is implemented
 * Music - just play exported?
 * ? SFX - play exported?
 * ? Clip
@@ -88,6 +89,27 @@ This will cover -
 * Continuous runner
 
 ## Changelog
+
+### 0.4.9 — pal(c0, c1, [p]) / palt(c, t), plus real sprite transparency
+
+Draw-time colour remapping and sprite transparency, applied consistently across every drawing primitive and sprites/`map()` alike — matching real Pico-8, where `pal()` affects the whole draw pipeline, not just `spr()`. Only the default draw palette (`p` omitted or `0`) is implemented; `pal(c0, c1, 1)` (the "screen" palette, a whole-framebuffer remap applied at flip time — a materially different mechanism) logs a one-time warning and no-ops, left on the roadmap.
+
+```js
+pal(2, 12);      // remap colour 2 -> 12 for every subsequent draw (primitives AND sprites)
+palt(10, true);  // colour 10 also draws as transparent on sprites, alongside the default (colour 0)
+pal();           // reset the draw palette to identity
+palt();          // reset transparency to just colour 0
+```
+
+**Side effect this made necessary, and a real default-behaviour change:** sprites now actually support transparency. Before 0.4.9, `spr()`/`sspr()`/`map()` drew straight from the loaded spritesheet PNG via `drawImage()` — no alpha channel anywhere, so every sprite rendered as a fully opaque rectangle, background colour included. `palt()` has nothing to control without transparency existing at all, so this version adds real Pico-8 default behaviour: colour 0 is transparent on sprites unless `palt()` says otherwise. Any existing picoJS game gets this automatically — sprites now composite correctly over whatever's drawn behind them instead of drawing a solid box. Confirmed directly against `games/picodiver/`: the ocean/ship graphics were previously a solid opaque block; sprites now show their actual silhouettes.
+
+**Mechanism.** Primitives (`rect`, `circ`, `line`, `pset`, `print`, `cls`, `colour()`) already funnel every numeric colour argument through the internal `resolveColour()` — that now checks the draw-palette remap first, so `pal()` covers them for free. Sprites can't be remapped that way (`drawImage()` has no per-pixel recolour hook), so instead the whole spritesheet gets recomposited into an offscreen canvas whenever `pal()`/`palt()` actually change something — reusing the same indexed pixel data `sget()`/`sgetc()` already extract (0.4.6/0.4.7), so no new decoding work was needed, just a new consumer of data already being maintained. `spr()`/`map()` draw from that composited canvas instead of the raw image; `sspr()` called directly with an explicit image argument is untouched, since it draws arbitrary caller-supplied images, not necessarily indexed sprite data. Degrades the same way `sget()` already does: falls back to the pre-0.4.9 raw/opaque rendering (with a one-time warning) if no indexed data is available at all — no `opts.spriteData` and a tainted canvas. `picoJS.paletteReady` mirrors `sgetReady`/`sgetcReady` for this path.
+
+Verified pixel-exactly, not just visually: sampled `getImageData()` before/after `pal(9,12)` on a 3-colour test sprite and confirmed exactly the original orange pixel count reappeared as blue with the yellow pixel count untouched; same for `palt(10,true)` revealing exactly the expected count of background pixels; combined and reset states matched precisely too. Then confirmed against the real cart: `games/picodiver/`'s title-screen `pal(2,12)` turns the placeholder dark-purple ocean tiles genuinely blue, and forcing a dolphin/shark to spawn in arcade (hard) mode and sampling its rendered pixels confirmed `pal(12,6)`'s grey-shark recolour is actually present on screen, not just theoretically wired up.
+
+Test harness: `test-0.4.9.html` + `test-0.4.9-game.js` — a 3-colour sprite (colours 0/9/10 only) drawn over a striped background so transparency is obvious at a glance, cycling through default → `pal(9,12)` → `palt(10,true)` → both combined → back to default, with a `rectfill()` swatch of the same colour index sitting alongside the sprite to prove primitives and sprites remap identically.
+
+`games/picodiver/` re-enables both `pal()` call sites that 0.4.5 had originally shipped as skipped comments — no other game-logic changes were needed. One faithfully-preserved original-cart quirk, flagged rather than silently fixed: the Lua never resets the hard-mode `pal(12,6)` recolour (no matching `pal(12,12)` anywhere, even though `hard` itself gets reset to `false`), so once arcade mode has been played once, the dolphin stays grey even in a later easy-mode game.
 
 ### 0.4.8 — real PICO-8 bitmap font for print(), plus custom fonts
 

@@ -1,15 +1,9 @@
 // picodiver.js
 // ============
 // Hand-port of picodiver2.p8 (Pico-8 Lua) to JavaScript, running on picoJS
-// 0.4.4. Source: /Users/nathan.taylor/Code/Personal/pico-code/PicoDiver/picodiver2.p8
+// 0.4.9. Source: /Users/nathan.taylor/Code/Personal/pico-code/PicoDiver/picodiver2.p8
 //
 // Deliberately NOT ported (per current scope):
-//   * pal(c0, c1) — palette swaps. Two call sites skipped:
-//       - shipshow(): pal(2,12) title-screen recolour
-//       - gamedraw(): pal(12,6) turns the dolphin sprite grey in hard mode
-//     The shark-kill *logic* in gameupdate() doesn't depend on this — it
-//     keys off the creature's sprite-index range, not its colour — so hard
-//     mode is fully playable, the shark just still looks like a dolphin.
 //   * sfx(n) — all 5 call sites skipped (score/hit/death cues). Silent.
 //   * wait(a) / flip() — dead code in the original (never called), omitted.
 //   * collider() — old AABB collision, explicitly marked "not used" in the
@@ -209,8 +203,12 @@ function gamedraw() {
 
     // if hard mode turn dolphin to shark
     if (hard === true) {
-        // pal(12,6) skipped — palette swap not ported yet; shark-kill logic
-        // below doesn't depend on it, only the recolour is missing.
+        pal(12, 6);
+        // NOTE: preserved from the original Lua — there's no matching
+        // pal(12,12) reset anywhere (titleinit()/windraw()/deathdraw() reset
+        // `hard` but never the palette), so once hard mode has been entered
+        // once, the dolphin stays grey even in a later easy-mode game. Ported
+        // literally rather than silently added a reset the original didn't have.
     }
 }
 
@@ -485,7 +483,7 @@ function octmove() {
 }
 
 function shipshow() {
-    // pal(2,12) skipped — "don't ask -)" palette swap not ported yet
+    pal(2, 12); // "don't ask -)"
     map(0, 0, sx, 0, 16, 4);
     if (frame % 30 === 1) {
         sx += 1;

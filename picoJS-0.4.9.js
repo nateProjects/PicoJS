@@ -1,6 +1,39 @@
-// picoJS 0.4.8
+// picoJS 0.4.9
 // ============
 // New in this milestone:
+//   * pal(c0, c1, [p]) / palt(c, t) — draw-time colour remap and sprite
+//     transparency, applied to every drawing primitive AND sprites/map()
+//     alike (matching real Pico-8: pal() affects the whole draw pipeline,
+//     not just spr()). Only the default draw palette (p=0) is implemented —
+//     p=1 (the "screen" palette, a whole-framebuffer remap applied at flip
+//     time) is a bigger, different mechanism and is explicitly out of scope
+//     for now; calling pal(c0, c1, 1) logs a one-time warning and no-ops.
+//   * Side effect, found necessary to make palt() meaningful at all: sprites
+//     now actually support transparency. Previously spr()/sspr()/map() drew
+//     straight from the loaded PNG via drawImage() with no alpha channel at
+//     all — every sprite rendered as a fully opaque rectangle, colour 0
+//     included. Real Pico-8 always treats colour 0 as transparent by
+//     default; this is a default-behaviour change for every existing game
+//     using picoJS (sprites now composite correctly over whatever's behind
+//     them, instead of drawing a solid box).
+//   * Mechanism: primitives (rect, circ, line, pset, print, cls, colour())
+//     already funnel every colour argument through resolveColour() — that
+//     now checks the draw-palette remap first. Sprites can't be remapped
+//     that way (drawImage() has no per-pixel recolour hook), so instead the
+//     whole spritesheet gets recomposited into an offscreen canvas — using
+//     the SAME indexed pixel data sget()/sgetc() already extract (0.4.6/
+//     0.4.7) — applying the current pal() remap and palt() transparency
+//     per pixel, rebuilt lazily whenever either changes. spr()/map() draw
+//     from that composited canvas instead of the raw image; sspr() called
+//     directly with an explicit image argument is untouched (it draws
+//     arbitrary caller-supplied images, not necessarily indexed sprite
+//     data, so there's nothing to remap). Degrades the same way sget()
+//     already does: falls back to the old raw/opaque rendering (with a
+//     one-time warning) if no indexed data is available at all — no
+//     opts.spriteData AND a tainted canvas.
+//   * picoJS.paletteReady mirrors sgetReady/sgetcReady for this path.
+//
+// Carried forward (0.4.8):
 //   * print() now renders with an actual bitmap font by default — the real
 //     PICO-8 4x6 pixel font (sourced from althonos/embedded-picofont, itself
 //     derived from Lexaloffle's own font asset under CC-0), not the canvas's
@@ -118,6 +151,26 @@
     var canvasSheetH = 0;
 
     var sgetWarned = false;
+
+    // Palette state (0.4.9). drawPal/spritePalt are sparse maps keyed by
+    // source colour index — {} means identity / nothing remapped. drawPal
+    // affects every primitive (via resolveColour()) and, composited into
+    // effSpriteCanvas below, sprites too. spritePalt controls which sprite
+    // colour indices draw as fully transparent (default: {0: true}, matching
+    // Pico-8's "colour 0 is transparent" convention).
+    var drawPal = {};
+    var spritePalt = { 0: true };
+
+    // Composited spritesheet: spriteDataArr's indices run through drawPal +
+    // spritePalt into actual RGBA pixels, rebuilt (lazily, only when dirty)
+    // whenever pal()/palt() changes. spr()/map() draw from this instead of
+    // the raw sprSheet image; sspr() called directly with an explicit image
+    // argument is unaffected. Falls back to raw/opaque rendering (sprSheet
+    // itself) if spriteDataArr isn't available at all.
+    var effSpriteCanvas = null;
+    var effSpriteCtx = null;
+    var effSpriteDirty = true;
+    var palWarned = false;
 
     var sys = 0;
     var curcol = 7;
@@ -252,9 +305,16 @@
         ];
     }
 
+    // Draw-palette remap (0.4.9) — c stays untouched if pal() hasn't
+    // remapped it. Shared by resolveColour() (primitives) and
+    // rebuildEffectiveSprites() (sprites), so pal() affects both the same way.
+    function palMap(c) {
+        return drawPal.hasOwnProperty(c) ? drawPal[c] : c;
+    }
+
     function resolveColour(col) {
-        if (col === undefined || col === null) return colours[sys][curcol][2];
-        if (typeof col === "number") return colours[sys][col][2];
+        if (col === undefined || col === null) col = curcol;
+        if (typeof col === "number") return colours[sys][palMap(col)][2];
         return col;
     }
 
@@ -370,8 +430,8 @@
 
     picoJS.colour = function (col) {
         curcol = col;
-        screen.fillStyle = colours[sys][col][2];
-        return colours[sys][col][2];
+        screen.fillStyle = resolveColour(col);
+        return colours[sys][palMap(col)][2];
     };
     picoJS.color = picoJS.colour;
 
@@ -570,7 +630,98 @@
         var sy = sprcelly * sprsize;
         var sw = w * sprsize;
         var sh = h * sprsize;
-        picoJS.sspr(sprSheet, sx, sy, sw, sh, x, y, sw, sh, flip_x, flip_y);
+        picoJS.sspr(currentSpriteSource(), sx, sy, sw, sh, x, y, sw, sh, flip_x, flip_y);
+    };
+
+    // Recomposite the whole spritesheet into effSpriteCanvas: each pixel's
+    // stored colour index (from spriteDataArr — the same data sget() uses)
+    // goes through the current palt() transparency check, then the current
+    // pal() draw-palette remap, becoming an actual RGBA pixel. Rebuilt only
+    // when pal()/palt() have actually changed something (effSpriteDirty).
+    function rebuildEffectiveSprites() {
+        effSpriteDirty = false;
+        if (!spriteDataArr || !sheetW || !sheetH) {
+            effSpriteCanvas = null; // no indexed data — nothing to composite
+            return;
+        }
+        if (!effSpriteCanvas) {
+            effSpriteCanvas = document.createElement("canvas");
+            effSpriteCanvas.width = sheetW;
+            effSpriteCanvas.height = sheetH;
+            effSpriteCtx = effSpriteCanvas.getContext("2d");
+        }
+        var imgData = effSpriteCtx.createImageData(sheetW, sheetH);
+        var d = imgData.data;
+        var palette = colours[sys];
+        for (var i = 0; i < sheetW * sheetH; i++) {
+            var idx = spriteDataArr[i];
+            if (idx < 0) idx = 0;
+            var o = i * 4;
+            if (spritePalt.hasOwnProperty(idx) ? spritePalt[idx] : false) {
+                continue; // alpha already 0 from createImageData()
+            }
+            var entry = palette[palMap(idx)] || palette[idx];
+            var hex = entry[2];
+            d[o]     = parseInt(hex.substr(1, 2), 16);
+            d[o + 1] = parseInt(hex.substr(3, 2), 16);
+            d[o + 2] = parseInt(hex.substr(5, 2), 16);
+            d[o + 3] = 255;
+        }
+        effSpriteCtx.putImageData(imgData, 0, 0);
+    }
+
+    // What spr()/map() should actually draw from: the pal()/palt()-composited
+    // spritesheet if indexed data is available, else the raw loaded image
+    // (pre-0.4.9 behaviour — opaque, unrecoloured).
+    function currentSpriteSource() {
+        if (effSpriteDirty) rebuildEffectiveSprites();
+        return effSpriteCanvas || sprSheet;
+    }
+
+    // pal(c0, c1, [p]) — remap draw colour c0 to c1. p=1 (the "screen"
+    // palette, a whole-framebuffer remap at flip time) isn't implemented —
+    // only the default draw palette (p=0) is. pal() with no arguments resets
+    // to identity.
+    picoJS.pal = function (c0, c1, p) {
+        if (c0 === undefined) {
+            if (Object.keys(drawPal).length > 0) effSpriteDirty = true;
+            drawPal = {};
+            return;
+        }
+        if (p === 1) {
+            console.warn("picoJS: pal(c0, c1, 1) — the screen palette (p=1) isn't supported, only the default draw palette (p=0) is. Ignored.");
+            return;
+        }
+        c0 = c0 | 0; c1 = c1 | 0;
+        if (!spriteDataArr && !palWarned) {
+            palWarned = true;
+            console.warn("picoJS: pal()/palt() won't affect sprites — no indexed sprite data available (supply opts.spriteData, or serve over http(s):// so the spritesheet canvas isn't tainted). Primitives are unaffected by this and will still remap correctly.");
+        }
+        if (drawPal[c0] !== c1) {
+            drawPal[c0] = c1;
+            effSpriteDirty = true;
+        }
+    };
+
+    // palt(c, t) — mark sprite colour index c as transparent (t truthy) or
+    // opaque (t falsy). Default: only index 0 is transparent. palt() with no
+    // arguments resets to that default.
+    picoJS.palt = function (c, t) {
+        if (c === undefined) {
+            effSpriteDirty = true;
+            spritePalt = { 0: true };
+            return;
+        }
+        c = c | 0;
+        if (!spriteDataArr && !palWarned) {
+            palWarned = true;
+            console.warn("picoJS: pal()/palt() won't affect sprites — no indexed sprite data available (supply opts.spriteData, or serve over http(s):// so the spritesheet canvas isn't tainted). Primitives are unaffected by this and will still remap correctly.");
+        }
+        var truthy = !!t;
+        if (Boolean(spritePalt[c]) !== truthy) {
+            spritePalt[c] = truthy;
+            effSpriteDirty = true;
+        }
     };
 
     // Extract the whole spritesheet into an indexed pixel array via an
@@ -764,6 +915,7 @@
         if (mapDataArr) {
             var layerFilter = (mlayer !== undefined && mlayer !== null);
             var layerMask = layerFilter ? (mlayer | 0) : 0;
+            var mapSpriteSrc = currentSpriteSource();
             for (var dy = 0; dy < mcelh; dy++) {
                 var ty = mcely + dy;
                 if (ty < 0 || ty >= mapHeightN) continue;
@@ -777,7 +929,7 @@
                     var sprcellx = n % mapgrid;
                     var sprcelly = Math.floor(n / mapgrid);
                     picoJS.sspr(
-                        sprSheet,
+                        mapSpriteSrc,
                         sprcellx * sprsize, sprcelly * sprsize, sprsize, sprsize,
                         msx + dx * sprsize, msy + dy * sprsize, sprsize, sprsize
                     );
@@ -954,6 +1106,8 @@
         spriteFlagsArr = new Uint8Array(256);
         spriteDataArr = null; sheetW = 0; sheetH = 0; sprPixelStatus = "pending";
         canvasSpriteDataArr = null; canvasSheetW = 0; canvasSheetH = 0; canvasPixelStatus = "pending";
+        drawPal = {}; spritePalt = { 0: true };
+        effSpriteCanvas = null; effSpriteCtx = null; effSpriteDirty = true;
 
         // Frame-rate throttling (0.4.5): defaults to Pico-8's real default of
         // 30fps. Pass opts.fps: 60 for a cart that defines _update60().
@@ -1209,6 +1363,9 @@
     // of sgetReady — e.g. with opts.spriteData supplied, sgetReady can be true
     // while sgetcReady is false (canvas tainted) or true (canvas readable too).
     Object.defineProperty(picoJS, "sgetcReady", { get: function () { return !!canvasSpriteDataArr; } });
+    // True once pal()/palt() can actually affect sprites (0.4.9) — i.e. once
+    // spriteDataArr is available, the same precondition sgetReady checks.
+    Object.defineProperty(picoJS, "paletteReady", { get: function () { return !!spriteDataArr; } });
 
     picoJS.installGlobals = function (target) {
         target = target || global;
@@ -1229,11 +1386,13 @@
             // Canvas-decoded spritesheet read (0.4.7)
             "sgetc",
             // Bitmap fonts (0.4.8)
-            "registerFont", "setFont", "fontInfo"
+            "registerFont", "setFont", "fontInfo",
+            // Palette (0.4.9)
+            "pal", "palt"
         ].forEach(function (n) { target[n] = picoJS[n]; });
     };
 
-    picoJS.version = "0.4.8";
+    picoJS.version = "0.4.9";
 
     global.picoJS = picoJS;
 }(typeof window !== "undefined" ? window : this));

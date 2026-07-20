@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>PicoDiver &mdash; ported to picoJS 0.4.8</title>
+    <title>PicoDiver &mdash; ported to picoJS 0.4.9</title>
     <style>
         body {
             background: #1D2B53;
@@ -29,9 +29,11 @@
     <p>
         Arrows move &middot; <kbd>X</kbd> easy mode from title &middot;
         <kbd>Z</kbd> arcade (hard) mode.
-        Ported from <code>picodiver2.p8</code>; palette swaps (<code>pal</code>)
-        and sound (<code>sfx</code>) are not implemented yet — see
-        picodiver.js header for the full list of what's skipped.
+        Ported from <code>picodiver2.p8</code>; sound (<code>sfx</code>) isn't
+        implemented yet — see picodiver.js header for the full list of what's
+        skipped. Palette swaps (<code>pal</code>) are now live: watch the
+        title-screen ship recolour, and the dolphin turn grey once you've
+        played arcade mode.
     </p>
     <p>
         Works straight from disk &mdash; just double-click this file, no
@@ -44,7 +46,7 @@
         breaking collision.)
     </p>
 
-    <script type="text/javascript" src="picoJS-0.4.8.js"></script>
+    <script type="text/javascript" src="picoJS-0.4.9.js"></script>
     <script type="text/javascript" src="picodiver-data.js"></script>
     <script type="text/javascript" src="picodiver.js"></script>
 </body>
