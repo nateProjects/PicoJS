@@ -6,6 +6,8 @@ A simple JavaScript game library, which makes it easy to create canvas-based gam
 
 It is inspired by Pico-8, a Lua-based virtual game console and game creation IDE, and can be used to port Pico-8 games to JavaScript.
 
+![](picoDiver.png)
+
 ## Getting the library
 
 There's a single file: **`picoJS.js`**, in the repo root. `picoJS.js` is continuously updated in place — version history lives in git tags and [CHANGELOG.md](CHANGELOG.md), not as parallel per-version files.
