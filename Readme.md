@@ -6,7 +6,7 @@ A simple JavaScript game library, which makes it easy to create canvas-based gam
 
 It is inspired by Pico-8, a Lua-based virtual game console and game creation IDE, and can be used to port Pico-8 games to JavaScript.
 
-![](picoDiver.png)
+![](games/picodiver/picoDiver.png)
 
 ## Getting the library
 
