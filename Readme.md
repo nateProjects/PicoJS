@@ -1,6 +1,6 @@
 # Pico-JS Javascript Game library
 
-**Current version: 1.0.0**
+**Current version: 1.0.1**
 
 A simple JavaScript game library, which makes it easy to create canvas-based games playable through a web browser.
 

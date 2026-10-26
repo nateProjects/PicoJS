@@ -1,5 +1,13 @@
 # Changelog
 
+### 1.0.1 — dset() no longer writes to localStorage on every single call
+
+A real, latent bug in 0.4.16/1.0.0's own `cartdata`/`dget`/`dset` work, found while comparing notes with a sibling project (ZXPicoLua, a Pico-8-to-ZX-Spectrum-Next port) that hit the identical shape of problem on its own hardware storage layer and had already fixed it there. `dset()` called `localStorage.setItem()` — JSON-serializing all 64 slots — synchronously, on every single call, with no debouncing. Harmless for an occasional save, but a cart that calls `dset()` every frame (a live score/HUD counter, a real and expected use, not a contrived one) would block the main thread 30-60x/second. No reference cart happened to call it that often, and browsers are fast enough to hide an occasional redundant write, which is exactly why this sat unnoticed — the Next port's own hard real-time constraints forced the identical design flaw to the surface where a browser never would have.
+
+Fixed by debouncing the actual write: `dset()` still updates the in-memory slot (and therefore `dget()`) immediately, with zero added latency, but the real `localStorage.setItem()` now coalesces into one write 500ms after the *last* `dset()` in a burst, not one write per call. A page `pagehide` or tab-hide (`visibilitychange`) flushes any write still waiting out that window immediately, so closing or backgrounding the tab right after a `dset()` can't silently drop it. `run()`'s own per-run reset also flushes (not drops) a pending save from a *previous* run before resetting state, same reasoning.
+
+Verified via a small Node harness (no DOM/canvas needed, since this only touches `cartdata`/`dget`/`dset`, not `run()`): a burst of 3 rapid `dset()` calls produces exactly one real write, containing all 3 updated slots, after the debounce window — not 3 separate writes — and `dget()` reflects every value immediately regardless of the pending write.
+
 ### 1.0.0 — file consolidation, and calling it done
 
 The version number is really the only thing that changed here — every feature in this release shipped incrementally as 0.4.0 through 0.4.16 below, each verified as it landed (many directly against `games/picodiver/`, a complete hand-port of a real, previously-shipped Pico-8 cart, rather than only synthetic test harnesses). 1.0 just marks the point where that felt sufficiently complete and stable to call a release, and does the housekeeping that comes with saying so:

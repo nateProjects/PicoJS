@@ -1,4 +1,4 @@
-// picoJS 1.0.0
+// picoJS 1.0.1
 // ============
 // A JavaScript game library for making canvas-based browser games, inspired
 // by Pico-8's API — and usable, alongside tools/p8-to-js.js, for porting
@@ -1423,8 +1423,44 @@
     var cartdataId = null;
     var cartdataSlots = new Int32Array(64);
     var cartdataPersisting = false; // true once cartdata() confirmed localStorage actually works
+    var cartdataSaveTimer = null; // debounce handle for dset()'s own localStorage write, below
+
+    // dset()'s own write used to go straight to localStorage.setItem() on
+    // EVERY call, synchronously JSON-serializing all 64 slots each time --
+    // fine for an occasional save, but a cart calling dset() every frame
+    // (a live score/HUD counter -- a real, expected use, not a contrived
+    // one) would do that 30-60x/second, blocking the main thread each time.
+    // Backported from a sibling project (ZXPicoLua, a Pico-8-to-ZX-Spectrum-
+    // Next port) that hit the identical shape of problem on its own esxDOS/
+    // SD-card storage and fixed it by making writes RAM-only until an
+    // explicit flush point -- this is the same split, just automatic
+    // (a short debounce) instead of requiring a cart to call anything new.
+    var CARTDATA_SAVE_DEBOUNCE_MS = 500;
 
     function cartdataKey() { return "picojs_cartdata_" + cartdataId; }
+
+    // The actual synchronous write, shared by the debounced dset() path
+    // and cartdataFlush() below -- so there's exactly one place that
+    // decides persistence has failed.
+    function cartdataWriteNow() {
+        try {
+            localStorage.setItem(cartdataKey(), JSON.stringify(Array.prototype.slice.call(cartdataSlots)));
+        } catch (e) {
+            cartdataPersisting = false;
+            console.warn("picoJS: cartdata write failed (" + (e && e.name) + "); further writes won't persist this session.");
+        }
+    }
+
+    // Writes out any save still waiting on the debounce timer, right now,
+    // synchronously -- called on page unload/hide so a dset() right
+    // before the tab closes doesn't lose its write sitting in the
+    // debounce window. Safe to call with nothing pending (no-op).
+    function cartdataFlush() {
+        if (cartdataSaveTimer === null) return;
+        clearTimeout(cartdataSaveTimer);
+        cartdataSaveTimer = null;
+        if (cartdataId !== null && cartdataPersisting) cartdataWriteNow();
+    }
 
     picoJS.cartdata = function (id) {
         if (typeof id !== "string" || id.length === 0) {
@@ -1463,12 +1499,15 @@
         if (index < 0 || index > 63) return;
         cartdataSlots[index] = value | 0;
         if (cartdataId !== null && cartdataPersisting) {
-            try {
-                localStorage.setItem(cartdataKey(), JSON.stringify(Array.prototype.slice.call(cartdataSlots)));
-            } catch (e) {
-                cartdataPersisting = false;
-                console.warn("picoJS: dset() — localStorage write failed (" + (e && e.name) + "); further writes won't persist this session.");
-            }
+            // Coalesce: a burst of dset() calls (several slots updated
+            // the same frame, or many frames in a row) collapses into
+            // one real write CARTDATA_SAVE_DEBOUNCE_MS after the LAST
+            // call, not one write per call.
+            if (cartdataSaveTimer !== null) clearTimeout(cartdataSaveTimer);
+            cartdataSaveTimer = setTimeout(function () {
+                cartdataSaveTimer = null;
+                cartdataWriteNow();
+            }, CARTDATA_SAVE_DEBOUNCE_MS);
         }
     };
 
@@ -1485,6 +1524,12 @@
         cam_y = 0;
         cursorX = 0; cursorY = 0;
         fillPattern = 0; fillPatternTransparent = false;
+        // Flush (not drop) any save still pending from a PREVIOUS run()'s
+        // cartdata before resetting -- then clear the timer explicitly
+        // rather than leaving it to fire later against this run()'s own
+        // freshly-reset (and differently-keyed, once cartdata() is next
+        // called) slots.
+        cartdataFlush();
         cartdataId = null; cartdataSlots = new Int32Array(64); cartdataPersisting = false;
         activeFontName = "pico8"; // registerFont()-added fonts persist; only the active choice resets
         startTimeMs = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
@@ -1536,6 +1581,21 @@
 
         document.addEventListener("keydown", keyDownHandler, false);
         document.addEventListener("keyup",   keyUpHandler,   false);
+
+        // Make sure a dset() write still sitting in its debounce window
+        // isn't lost if the tab closes/backgrounds before the timer
+        // fires -- "pagehide" (fires on tab close AND on mobile
+        // backgrounding, unlike "beforeunload") plus "visibilitychange"
+        // (covers switching tabs without closing) between them catch the
+        // real-world cases "wait for the timer" alone would miss.
+        if (typeof window !== "undefined" && window.addEventListener) {
+            window.addEventListener("pagehide", cartdataFlush, false);
+        }
+        if (typeof document.addEventListener === "function") {
+            document.addEventListener("visibilitychange", function () {
+                if (document.visibilityState === "hidden") cartdataFlush();
+            }, false);
+        }
 
         if (opts.globals !== false) picoJS.installGlobals();
 
@@ -1812,7 +1872,7 @@
         ].forEach(function (n) { target[n] = picoJS[n]; });
     };
 
-    picoJS.version = "1.0.0";
+    picoJS.version = "1.0.1";
 
     global.picoJS = picoJS;
 }(typeof window !== "undefined" ? window : this));
